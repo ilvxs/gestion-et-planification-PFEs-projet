@@ -6,7 +6,30 @@ use Illuminate\Database\Eloquent\Model;
 
 class Soutenance extends Model
 {
+    protected $table = 'soutenances';
     protected $primaryKey = 'id_soutenance';
-    
-    protected $fillable = ['date_soutenance', 'heure_debut', 'salle', 'id_pfe', 'id_jury1', 'id_jury2'];
+
+    protected $fillable = [
+        'date_soutenance',
+        'heure_debut',
+        'salle',
+        'id_pfe',
+        'id_jury1',
+        'id_jury2'
+    ];
+
+    public function pfe()
+    {
+        return $this->belongsTo(Pfe::class, 'id_pfe', 'id_pfe');
+    }
+
+    public function jury1()
+    {
+        return $this->belongsTo(Professeur::class, 'id_jury1', 'id_professeur');
+    }
+
+    public function jury2()
+    {
+        return $this->belongsTo(Professeur::class, 'id_jury2', 'id_professeur');
+    }
 }

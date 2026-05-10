@@ -6,9 +6,19 @@ use Illuminate\Database\Eloquent\Model;
 
 class Etudiant extends Model
 {
-    // Tells Laravel to use 'id_etudiant' instead of 'id'
-    protected $primaryKey = 'id_etudiant'; 
+    protected $table = 'etudiants';
+    protected $primaryKey = 'id_etudiant';
 
-    // (Optional but recommended) Allow mass assignment for your columns
-    protected $fillable = ['nom', 'prenom', 'cne', 'email', 'filiere']; 
+    protected $fillable = [
+        'nom',
+        'prenom',
+        'cne',
+        'email',
+        'filiere'
+    ];
+
+    public function pfe()
+    {
+        return $this->hasOne(Pfe::class, 'id_etudiant', 'id_etudiant');
+    }
 }
