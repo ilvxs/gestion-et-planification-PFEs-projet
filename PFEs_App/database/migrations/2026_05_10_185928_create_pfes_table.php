@@ -21,7 +21,7 @@ return new class extends Migration
         $table->foreign('id_etudiant')->references('id_etudiant')->on('etudiants')->onDelete('cascade');
 
         // Clé étrangère 2 : Encadrant (Professeur)
-        $table->unsignedBigInteger('id_encadrant');
+        $table->unsignedBigInteger('id_encadrant')->nullable();
         $table->foreign('id_encadrant')->references('id_professeur')->on('professeurs')->onDelete('restrict');
         
         $table->timestamps();
