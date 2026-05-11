@@ -12,7 +12,7 @@ class ImportExcelRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -23,7 +23,21 @@ class ImportExcelRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            "excel_file" => [
+                "required", "file", "mimes:xlsx,xls"
+            ],
+        ];
+    }
+
+    /**
+     * Custom error messages.
+     */
+    public function messages(): array
+    {
+        return [
+            'excel_file.required' => 'Veuillez sélectionner un fichier Excel.',
+            'excel_file.file' => 'Le fichier envoyé est invalide.',
+            'excel_file.mimes' => 'Le fichier doit être au format xlsx ou xls.'
         ];
     }
 }
