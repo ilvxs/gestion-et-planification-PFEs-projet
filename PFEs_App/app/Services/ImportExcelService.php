@@ -101,37 +101,50 @@ public function importEtudiants(UploadedFile $file): array
      * Importation des Professeurs
      */
     public function importProfesseurs(UploadedFile $file): array
-    {
-        $rows = $this->readExcel($file);
-        $importedCount = 0;
-        $errors = [];
+{
+    $rows = $this->readExcel($file);
+    $importedCount = 0;
+    $errors = [];
 
-        foreach ($rows as $index => $row) {
-            if ($index === 0) continue;
+    foreach ($rows as $index => $row) {
+        if ($index === 0) continue;
 
-            $data = [
-                'nom'        => $row[0] ?? null,
-                'prenom'     => $row[1] ?? null,
-                'specialite' => $row[2] ?? null,
-            ];
+        $data = [
+            'nom'        => trim($row[0] ?? null),
+            'prenom'     => trim($row[1] ?? null),
+            'specialite' => trim($row[2] ?? null),
+        ];
 
-            $validator = $this->validateRow($data, [
-                'nom'        => 'required|string',
-                'prenom'     => 'required|string',
-                'specialite' => 'required|string',
-            ]);
+        // 1. Validation de base (champs requis)
+        $validator = $this->validateRow($data, [
+            'nom'        => 'required|string',
+            'prenom'     => 'required|string',
+            'specialite' => 'required|string',
+        ]);
 
-            if ($validator->fails()) {
-                $errors[] = "Ligne " . ($index + 1) . " : " . implode(", ", $validator->errors()->all());
-                continue;
-            }
-
-            Professeur::create($data);
-            $importedCount++;
+        if ($validator->fails()) {
+            $errors[] = "Ligne " . ($index + 1) . " : " . implode(", ", $validator->errors()->all());
+            continue;
         }
 
-        return ['imported' => $importedCount, 'errors' => $errors];
+        // 2. IMPROVEMENT: Gestion des doublons
+        // On cherche si un professeur avec le même nom ET prénom existe déjà
+        $exists = Professeur::where('nom', $data['nom'])
+                            ->where('prenom', $data['prenom'])
+                            ->exists();
+
+        if ($exists) {
+            $errors[] = "Ligne " . ($index + 1) . " : Le professeur " . $data['nom'] . " " . $data['prenom'] . " existe déjà dans la base.";
+            continue;
+        }
+
+        // 3. Insertion si tout est correct
+        Professeur::create($data);
+        $importedCount++;
     }
+
+    return ['imported' => $importedCount, 'errors' => $errors];
+}
 
     
     /**
