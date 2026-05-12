@@ -62,7 +62,7 @@ class ImportExcelService
 
             // Validation des champs requis
             $validator = $this->validateRow($data, [
-                'cne'     => 'required|string|unique:etudiants,cne',
+                'cne'     => 'required|string',
                 'nom'     => 'required|string',
                 'prenom'  => 'required|string',
                 'email'   => 'required|email',
@@ -74,12 +74,14 @@ class ImportExcelService
             if ($validator->fails()) {
                 $missingFields = implode(', ', $validator->errors()->keys());
                 $errors[] = "Ligne $lineNum : Données manquantes ou invalides ($missingFields)";
+                continue;
             }
 
             // Vérification des doublons CNE dans le fichier
             if (!empty($data['cne'])) {
                 if (in_array($data['cne'], $seenCNEs)) {
                     $errors[] = "Ligne $lineNum : Le CNE " . $data['cne'] . " est dupliqué dans le fichier.";
+                    continue;
                 } else {
                     $seenCNEs[] = $data['cne'];
                 }
@@ -102,14 +104,17 @@ class ImportExcelService
 
         // Si aucune erreur, on procède à l'enregistrement massif
         try {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+
+            Pfe::truncate();
+            Etudiant::truncate();
+
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
             return DB::transaction(function () use ($dataToImport) {
-                // On ne réinitialise la base que maintenant
-                DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-                Pfe::truncate();
-                Etudiant::truncate();
-                DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
                 foreach ($dataToImport as $item) {
+
                     $etudiant = Etudiant::create([
                         'nom'     => $item['nom'],
                         'prenom'  => $item['prenom'],
@@ -131,7 +136,7 @@ class ImportExcelService
             return [
                 'students_imported' => 0,
                 'pfes_imported' => 0,
-                'errors' => ["Une erreur technique est survenue lors de l'insertion finale."],
+                'errors' => [ $e->getMessage()],
             ];
         }
     }
