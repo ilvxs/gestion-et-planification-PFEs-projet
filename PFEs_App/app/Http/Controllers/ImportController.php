@@ -9,8 +9,7 @@ class ImportController extends Controller
 {
     protected $importService;
 
-    public function __construct(ImportExcelService $importService)
-    {
+    public function __construct(ImportExcelService $importService){
         // $this->importService = new ImportExcelService();
         $this->importService = $importService;
     }
@@ -18,47 +17,48 @@ class ImportController extends Controller
     /**
      * Display import page
      */
-    public function index()
-    {
+    public function index(){
         return view('imports.index');
     }
 
     /**
-     * Import students Excel file
+     * Importer tous le inputs
      */
-    public function importEtudiants(ImportExcelRequest $request)
-    {
-        $file = $request->file('excel_file');
-        $result = $this->importService->importEtudiants($file);
-        return view('imports.result', [
-            'result' => $result
+    public function importAll(ImportExcelRequest $request){
+
+        session([
+            'date_soutenance' => $request->date_soutenance,
+            'salles' => $request->salles
         ]);
-    }
 
-    /**
-     * Import professors Excel file
-     */
-    public function importProfesseurs(ImportExcelRequest $request)
-    {
-        $file = $request->file('excel_file');
+        $studentsResult = $this->importService
+            ->importEtudiants(
+                $request->file('students_file')
+            );
 
-        $result = $this->importService->importProfesseurs($file);
+        $professeursResult = $this->importService
+            ->importProfesseurs(
+                $request->file('professeurs_file')
+            );
+
+        $result = [
+            'students_imported'
+                => $studentsResult['students_imported'],
+            'pfes_imported'
+                => $studentsResult['pfes_imported'],
+            'professeurs_imported'
+                => $professeursResult['imported'],
+            'errors'
+                => array_merge(
+                    $studentsResult['errors'],
+                    $professeursResult['errors']
+                )
+        ];
 
         return view('imports.result', [
-            'result' => $result
-        ]);
-    }
 
-    /**
-     * Import PFEs Excel file
-     */
-    public function importPfes(ImportExcelRequest $request)
-    {
-        $file = $request->file('excel_file');
+            'title' => 'Résultat Importation',
 
-        $result = $this->importService->importPfes($file);
-
-        return view('imports.result', [
             'result' => $result
         ]);
     }

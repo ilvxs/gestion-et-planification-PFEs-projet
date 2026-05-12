@@ -23,9 +23,31 @@ class ImportExcelRequest extends FormRequest
     public function rules(): array
     {
         return [
-            "excel_file" => [
-                "required", "file", "mimes:xlsx,xls"
+            'students_file' => [
+                'required',
+                'file',
+                'mimes:xlsx,xls'
             ],
+
+            'professeurs_file' => [
+                'required',
+                'file',
+                'mimes:xlsx,xls'
+            ],
+
+            'date_soutenance' => [
+                'required',
+                'date'
+            ],
+
+            'salles' => [
+                'required',
+                'array'
+            ],
+
+            'salles.*' => [
+                'string'
+            ]
         ];
     }
 
@@ -35,9 +57,39 @@ class ImportExcelRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'excel_file.required' => 'Veuillez sélectionner un fichier Excel.',
-            'excel_file.file' => 'Le fichier envoyé est invalide.',
-            'excel_file.mimes' => 'Le fichier doit être au format xlsx ou xls.'
-        ];
+
+            'students_file.required'
+                => 'Le fichier des étudiants est obligatoire.',
+
+            'students_file.file'
+                => 'Le fichier des étudiants doit être un fichier valide.',
+
+            'students_file.mimes'
+                => 'Le fichier des étudiants doit être Excel (.xlsx ou .xls).',
+
+            'professeurs_file.required'
+                => 'Le fichier des professeurs est obligatoire.',
+
+            'professeurs_file.file'
+                => 'Le fichier des professeurs doit être un fichier valide.',
+
+            'professeurs_file.mimes'
+                => 'Le fichier des professeurs doit être Excel (.xlsx ou .xls).',
+
+            'date_soutenance.required'
+                => 'La date des soutenances est obligatoire.',
+
+            'date_soutenance.date'
+                => 'Veuillez choisir une date valide.',
+
+            'salles.required'
+                => 'Veuillez sélectionner au moins une salle.',
+
+            'salles.array'
+                => 'Le format des salles est invalide.',
+
+            'salles.*.string'
+                => 'Une des salles sélectionnées est invalide.'
+        ];    
     }
 }
