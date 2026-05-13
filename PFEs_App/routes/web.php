@@ -13,6 +13,7 @@ Route::post('/', [ImportController::class, 'importAll'])
 
 Route::get('/affectations', [AffectationController::class, 'index'])
     ->name('affectations.index');
+    
 Route::post('/affectations/generate', [AffectationController::class, 'generate'])
     ->name('affectations.generate');
 

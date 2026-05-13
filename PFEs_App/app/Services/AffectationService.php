@@ -10,15 +10,15 @@ class AffectationService
 {
     public function affecterEncadrants(): array
     {
-        $pfesSansEncadrant = Pfe::whereNull('id_encadrant')->get();
+        $pfesSansEncadrant = Pfe::all();
         $professeurs = Professeur::all();
 
         if ($pfesSansEncadrant->isEmpty()) {
             return [
                 'affected' => 0,
-                'errors' => ['Aucun PFE sans encadrant trouvé.'],
-                'warnings' => [],
+                'errors' => ['Aucun PFE trouvé.'],
                 'repartition' => [],
+
             ];
         }
 
@@ -26,7 +26,6 @@ class AffectationService
             return [
                 'affected' => 0,
                 'errors' => ['Aucun professeur trouvé.'],
-                'warnings' => [],
                 'repartition' => [],
             ];
         }
@@ -59,7 +58,6 @@ class AffectationService
             return [
                 'affected' => $affected,
                 'errors' => [],
-                'warnings' => [],
                 'repartition' => $this->getRepartition(),
             ];
         });
@@ -70,10 +68,13 @@ class AffectationService
      */
     private function choisirProfesseurMoinsCharge($professeurs, array $charges): Professeur
     {
-        return $professeurs->sortBy(function ($professeur) use ($charges) {
+        $professeurs = $professeurs->sortBy(function ($professeur) use ($charges) {
             return $charges[$professeur->id_professeur];
-        })->first();
+        });
+        
+        return $professeurs->first();
     }
+
 
     /**
      * Retourne la répartition finale par professeur
