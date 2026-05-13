@@ -145,26 +145,26 @@ class ImportExcelService
          */
     public function importProfesseurs(UploadedFile $file): array
     {
-        // 1. Réinitialisation complète de la table
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        Professeur::truncate(); 
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-
         $rows = $this->readExcel($file);
+
         $importedCount = 0;
         $errors = [];
-        
-        // Tableau pour suivre les doublons à l'intérieur du fichier Excel
+        $dataToImport = [];
         $seenProfessors = [];
 
+        // --- ÉTAPE 1 : VALIDATION COMPLÈTE ---
         foreach ($rows as $index => $row) {
+
             if ($index === 0 || $index === 1) continue;
+
+            if (empty(array_filter($row))) continue;
+
+            $lineNum = $index + 1;
 
             $nom = trim($row[0] ?? '');
             $prenom = trim($row[1] ?? '');
             $specialite = trim($row[2] ?? '');
 
-            // Création d'une clé unique pour ce professeur (ex: "NOM-PRENOM")
             $profKey = strtoupper($nom . '|' . $prenom);
 
             $data = [
@@ -173,7 +173,7 @@ class ImportExcelService
                 'specialite' => $specialite,
             ];
 
-            // Validation des champs vides/format
+            // Validation
             $validator = $this->validateRow($data, [
                 'nom'        => 'required|string',
                 'prenom'     => 'required|string',
@@ -181,25 +181,70 @@ class ImportExcelService
             ]);
 
             if ($validator->fails()) {
-                $errors[] = "Ligne " . ($index + 1) . " : " . implode(", ", $validator->errors()->all());
+
+                $missingFields = implode(', ', $validator->errors()->keys());
+
+                $errors[] = "Ligne $lineNum : Données manquantes ou invalides ($missingFields)";
+
                 continue;
             }
 
-            // 2. VÉRIFICATION DES DOUBLONS DANS LE FICHIER
+            // Vérification doublons dans le fichier
             if (in_array($profKey, $seenProfessors)) {
-                $errors[] = "Ligne " . ($index + 1) . " : Le professeur $nom $prenom apparaît deux fois dans le fichier Excel.";
+
+                $errors[] = "Ligne $lineNum : Le professeur $nom $prenom apparaît deux fois dans le fichier.";
+
                 continue;
             }
 
-            // Ajouter ce professeur à la liste des "déjà vus"
             $seenProfessors[] = $profKey;
 
-            // 3. Insertion
-            Professeur::create($data);
-            $importedCount++;
+            // Stockage temporaire
+            $dataToImport[] = $data;
         }
 
-        return ['imported' => $importedCount, 'errors' => $errors];
+        // --- ÉTAPE 2 : REFUS SI ERREURS ---
+        if (count($errors) > 0) {
+
+            return [
+                'imported' => 0,
+                'errors' => $errors,
+            ];
+        }
+
+        // --- ÉTAPE 3 : SUPPRESSION + INSERTION ---
+        try {
+
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+
+            Professeur::truncate();
+
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+            return DB::transaction(function () use ($dataToImport) {
+
+                $importedCount = 0;
+
+                foreach ($dataToImport as $data) {
+
+                    Professeur::create($data);
+
+                    $importedCount++;
+                }
+
+                return [
+                    'imported' => $importedCount,
+                    'errors' => [],
+                ];
+            });
+
+        } catch (\Exception $e) {
+
+            return [
+                'imported' => 0,
+                'errors' => [$e->getMessage()],
+            ];
+        }
     }
 
         
