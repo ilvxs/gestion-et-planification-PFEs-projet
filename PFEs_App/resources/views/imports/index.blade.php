@@ -70,6 +70,18 @@
         <label>
             <input type="checkbox" name="salles[]" value="Salle C">Salle C
         </label>
+
+        <br>
+
+        <label>
+            <input type="checkbox" name="salles[]" value="Salle D">Salle D
+        </label>
+
+        <br>
+
+        <label>
+            <input type="checkbox" name="salles[]" value="Salle E">Salle E
+        </label>
     
         @error('salles')
             <p class="error">

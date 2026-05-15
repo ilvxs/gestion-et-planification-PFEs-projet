@@ -31,6 +31,37 @@
         </ul>
     @endif
 
+    @if(!empty($result['prof_stats']))
+
+        <h2>Nombre de soutenances par professeur</h2>
+
+        <table border="1" cellpadding="8">
+
+            <thead>
+                <tr>
+                    <th>Professeur</th>
+                    <th>Nombre de participations</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                @foreach($result['prof_stats'] as $stat)
+
+                    <tr>
+                        <td>{{ $stat['nom'] }}</td>
+
+                        <td>{{ $stat['count'] }}</td>
+                    </tr>
+
+                @endforeach
+
+            </tbody>
+
+        </table>
+
+    @endif
+
     @if(!empty($result['planning']))
         <h2>Planning généré</h2>
 
@@ -42,8 +73,11 @@
                     <th>Salle</th>
                     <th>PFE</th>
                     <th>Encadrant</th>
+                    <th>Spécialité Encadrant</th>
                     <th>Jury 1</th>
+                    <th>Spécialité Jury 1</th>
                     <th>Jury 2</th>
+                    <th>Spécialité Jury 2</th>
                 </tr>
             </thead>
 
@@ -55,8 +89,11 @@
                         <td>{{ $soutenance['salle'] }}</td>
                         <td>{{ $soutenance['pfe'] }}</td>
                         <td>{{ $soutenance['encadrant'] }}</td>
+                        <td>{{ $soutenance['specialite_encadrant'] }}</td>
                         <td>{{ $soutenance['jury1'] }}</td>
+                        <td>{{ $soutenance['specialite_jury1'] }}</td>
                         <td>{{ $soutenance['jury2'] }}</td>
+                        <td>{{ $soutenance['specialite_jury2'] }}</td>
                     </tr>
                 @endforeach
             </tbody>
