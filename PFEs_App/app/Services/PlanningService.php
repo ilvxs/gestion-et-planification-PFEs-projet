@@ -25,10 +25,17 @@ class PlanningService
             return $this->isEnglish($prof->specialite);
         });
 
+        $profStats = [];
+
         foreach ($professeurs as $prof) {
+
             $profStats[$prof->id_professeur] = [
+
                 'nom' => $prof->nom . ' ' . $prof->prenom,
+
                 'count' => 0,
+
+                '09_count' => 0,
             ];
         }
 
@@ -37,22 +44,30 @@ class PlanningService
         $planning = [];
         $errors = [];
         $warnings = [];
+        $filiereParJour = [];
 
         $created = 0;
 
-        $profStats = [];
-        foreach ($professeurs as $prof) {
-
-            $profStats[$prof->id_professeur] = [
-                'nom' => $prof->nom . ' ' . $prof->prenom,
-                'count' => 0,
-            ];
-        }
+        $totalParticipations = count($pfes) * 3;
+        $maxSoutenances = ceil(
+            $totalParticipations / $professeurs->count()
+        );
 
         $dateCourante = Carbon::parse($dateDebut);
 
         $indexSalle = 0;
         $indexCreneau = 0;
+
+        $pfes = $pfes->sortBy(function ($pfe) use (
+            $filiereParJour,
+            $dateCourante
+        ) {
+            return $this->scoreFiliereJour(
+                $filiereParJour,
+                $dateCourante->toDateString(),
+                $pfe->etudiant->filiere
+            );
+        });
 
         foreach ($pfes as $pfe) {
 
@@ -86,17 +101,26 @@ class PlanningService
             
             $disponibles = $professeurs
                 ->where('id_professeur', '!=', $encadrant->id_professeur)
-                ->sortBy(function ($prof) use ($profStats) {
-
-                    return $profStats[$prof->id_professeur]['count'] ?? 0;
+                ->sortBy(function ($prof) use ($profStats, $heure) {
+                    return $profStats[$prof->id_professeur]['count'] +
+                            $this->avoidMorningBias(
+                                $prof,
+                                $heure,
+                                $profStats
+                            );
                 });
 
             $jury1 = null;
             $jury2 = null;
-
+            
             if (
                 $pfeAnglais &&
-                !$encadrantAnglais
+                !$encadrantAnglais &&
+                $this->englishProfDisponible(
+                    $professeurs,
+                    $profStats,
+                    $maxSoutenances
+                )
             ) {
 
                 $disponibles = $disponibles->sortByDesc(function ($prof) {
@@ -266,6 +290,8 @@ class PlanningService
                 'heure' => $heure,
                 'salle' => $salle,
 
+                'filiere' => $pfe->etudiant->filiere,
+
                 'id_encadrant' => $encadrant->id_professeur,
                 'id_jury1' => $jury1->id_professeur,
                 'id_jury2' => $jury2->id_professeur,
@@ -291,11 +317,27 @@ class PlanningService
                     $jury2->specialite ?? '-',
             ];
 
+            $dateKey = $dateCourante->toDateString();
+            $filiere = $pfe->etudiant->filiere;
+            if (!isset($filiereParJour[$dateKey])) {
+                $filiereParJour[$dateKey] = [];
+            }
+            if (!isset($filiereParJour[$dateKey][$filiere])) {
+                $filiereParJour[$dateKey][$filiere] = 0;
+            }
+            $filiereParJour[$dateKey][$filiere]++;
+
             $profStats[$encadrant->id_professeur]['count']++;
 
             $profStats[$jury1->id_professeur]['count']++;
 
             $profStats[$jury2->id_professeur]['count']++;
+
+            if ($heure === '09:00') {
+                $profStats[$encadrant->id_professeur]['09_count']++;
+                $profStats[$jury1->id_professeur]['09_count']++;
+                $profStats[$jury2->id_professeur]['09_count']++;
+            }
 
             $created++;
 
@@ -601,6 +643,29 @@ class PlanningService
         ]);
     }
 
+    private function englishProfDisponible(
+        $professeurs,
+        $profStats,
+        $maxSoutenances
+    ): bool {
+
+        foreach ($professeurs as $prof) {
+
+            if (!$this->isEnglish($prof->specialite)) {
+                continue;
+            }
+
+            if (
+                $profStats[$prof->id_professeur]['count']
+                < $maxSoutenances
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+}
+
     private function isInfo(?string $text): bool
     {
         if (!$text) {
@@ -615,6 +680,28 @@ class PlanningService
             'computer science',
             'cs',
         ]);
+    }
+
+    private function avoidMorningBias(
+        $prof,
+        $heure,
+        $profStats
+    ): int {
+
+        if ($heure !== '09:00') {
+            return 0;
+        }
+
+        return $profStats[$prof->id_professeur]['09_count'];
+    }
+
+    private function scoreFiliereJour(
+        $filiereParJour,
+        $date,
+        $filiere
+    ): int {
+
+        return $filiereParJour[$date][$filiere] ?? 0;
     }
 }
 /*

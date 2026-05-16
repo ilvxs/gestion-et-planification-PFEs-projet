@@ -72,6 +72,7 @@
                     <th>Heure</th>
                     <th>Salle</th>
                     <th>PFE</th>
+                    <th>Filière</th>
                     <th>Encadrant</th>
                     <th>Spécialité Encadrant</th>
                     <th>Jury 1</th>
@@ -88,6 +89,7 @@
                         <td>{{ $soutenance['heure'] }}</td>
                         <td>{{ $soutenance['salle'] }}</td>
                         <td>{{ $soutenance['pfe'] }}</td>
+                        <td>{{ $soutenance['filiere'] }}</td>
                         <td>{{ $soutenance['encadrant'] }}</td>
                         <td>{{ $soutenance['specialite_encadrant'] }}</td>
                         <td>{{ $soutenance['jury1'] }}</td>
