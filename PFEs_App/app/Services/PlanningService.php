@@ -17,6 +17,10 @@ class PlanningService
     {
         set_time_limit(300);
 
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        Soutenance::truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
         $pfes = Pfe::with(['etudiant', 'encadrant'])->get();
 
         $professeurs = Professeur::all();
@@ -45,6 +49,7 @@ class PlanningService
         $errors = [];
         $warnings = [];
         $filiereParJour = [];
+        $profSoutenancesParJour = []; // Tracker soutenances par prof par jour
 
         $created = 0;
 
@@ -140,6 +145,19 @@ class PlanningService
                 });
             }
 
+            // ===============================
+            // Réserver les profs anglais
+            // aux PFEs anglais
+            // ===============================
+
+            if (!$pfeAnglais) {
+
+                $disponibles = $disponibles->sortBy(function ($prof) {
+
+                    return $this->isEnglish($prof->specialite) ? 1 : 0;
+                });
+            }
+
             foreach ($disponibles as $prof) {
 
                 if ($this->profOccupe(
@@ -160,8 +178,46 @@ class PlanningService
                     continue;
                 }
 
+                // NOUVELLE CONTRAINTE : Répartition équitable sur les jours (soft constraint)
+                if ($this->profTooManyOnDay(
+                    $profSoutenancesParJour,
+                    $prof->id_professeur,
+                    $dateCourante->toDateString(),
+                    $profStats,
+                    false  // not a fallback - try to respect the constraint
+                )) {
+                    continue;
+                }
+
                 $jury1 = $prof;
                 break;
+            }
+
+            // Fallback : si pas de jury1 trouvé, relaxer la contrainte équitable
+            if (!$jury1) {
+                foreach ($disponibles as $prof) {
+
+                    if ($this->profOccupe(
+                        $planning,
+                        $prof->id_professeur,
+                        $dateCourante->toDateString(),
+                        $heure
+                    )) {
+                        continue;
+                    }
+
+                    if ($this->profConsecutif(
+                        $planning,
+                        $prof->id_professeur,
+                        $dateCourante->toDateString(),
+                        $heure
+                    )) {
+                        continue;
+                    }
+
+                    $jury1 = $prof;
+                    break;
+                }
             }
 
             $currentInfoCount = 0;
@@ -181,6 +237,21 @@ class PlanningService
             }
 
             if ($currentInfoCount < 2) {
+
+                $disponibles = $disponibles->sortByDesc(function ($prof) {
+
+                    return $this->isInfo($prof->specialite);
+                });
+            }
+
+            if ($currentInfoCount >= 2) {
+
+                $disponibles = $disponibles->sortBy(function ($prof) {
+
+                    return $this->isInfo($prof->specialite) ? 1 : 0;
+                });
+
+            } else {
 
                 $disponibles = $disponibles->sortByDesc(function ($prof) {
 
@@ -224,8 +295,62 @@ class PlanningService
                     continue;
                 }
 
+                // NOUVELLE CONTRAINTE : Répartition équitable sur les jours (soft constraint)
+                if ($this->profTooManyOnDay(
+                    $profSoutenancesParJour,
+                    $prof->id_professeur,
+                    $dateCourante->toDateString(),
+                    $profStats,
+                    false  // not a fallback - try to respect the constraint
+                )) {
+                    continue;
+                }
+
                 $jury2 = $prof;
                 break;
+            }
+
+            // Fallback : si pas de jury2 trouvé, relaxer la contrainte équitable
+            if (!$jury2) {
+                foreach ($disponibles as $prof) {
+
+                    if (!$jury1) {
+                        break;
+                    }
+
+                    if (
+                        $prof->id_professeur === $jury1->id_professeur
+                    ) {
+                        continue;
+                    }
+                    if (
+                        $encadrant &&
+                        $prof->id_professeur === $encadrant->id_professeur
+                    ) {
+                        continue;
+                    }
+
+                    if ($this->profOccupe(
+                        $planning,
+                        $prof->id_professeur,
+                        $dateCourante->toDateString(),
+                        $heure
+                    )) {
+                        continue;
+                    }
+
+                    if ($this->profConsecutif(
+                        $planning,
+                        $prof->id_professeur,
+                        $dateCourante->toDateString(),
+                        $heure
+                    )) {
+                        continue;
+                    }
+
+                    $jury2 = $prof;
+                    break;
+                }
             }
 
             $infoCount = 0;
@@ -251,10 +376,92 @@ class PlanningService
                 $infoCount++;
             }
 
+            // ======================================================
+            // FALLBACK SPECIAL : FORCER un prof informatique
+            // même si surcharge
+            // ======================================================
+
             if ($infoCount < 2) {
 
-                $warnings[] =
-                    "PFE {$pfe->id_pfe} : moins de 2 professeurs informatique disponibles.";
+                $profsInfo = $professeurs->filter(function ($prof) use ($encadrant, $jury1, $jury2) {
+
+                    // doit être info
+                    if (!$this->isInfo($prof->specialite)) {
+                        return false;
+                    }
+
+                    // éviter doublons
+                    if ($encadrant && $prof->id_professeur === $encadrant->id_professeur) {
+                        return false;
+                    }
+
+                    if ($jury1 && $prof->id_professeur === $jury1->id_professeur) {
+                        return false;
+                    }
+
+                    if ($jury2 && $prof->id_professeur === $jury2->id_professeur) {
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                foreach ($profsInfo as $profInfo) {
+
+                    // ici on IGNORE volontairement :
+                    // - profTooManyOnDay
+                    // - max soutenances
+                    // - équilibre
+                    // - consecutif
+
+                    // on garde seulement :
+                    // PAS le même créneau horaire
+
+                    if ($this->profOccupe(
+                        $planning,
+                        $profInfo->id_professeur,
+                        $dateCourante->toDateString(),
+                        $heure
+                    )) {
+                        continue;
+                    }
+
+                    // remplacer un jury non-info par ce prof info
+
+                    if ($jury1 && !$this->isInfo($jury1->specialite)) {
+
+                        $jury1 = $profInfo;
+                        $infoCount++;
+                        break;
+                    }
+
+                    if ($jury2 && !$this->isInfo($jury2->specialite)) {
+
+                        $jury2 = $profInfo;
+                        $infoCount++;
+                        break;
+                    }
+                }
+            }
+
+            if ($infoCount < 2) {
+                // passer au créneau suivant
+                $indexSalle++;
+
+                if ($indexSalle >= count($salles)) {
+
+                    $indexSalle = 0;
+                    $indexCreneau++;
+                }
+
+                if ($indexCreneau >= count($creneaux)) {
+
+                    $indexCreneau = 0;
+                    $dateCourante->addDay();
+                }
+
+                // remettre le PFE plus tard
+                continue;
             }
 
             if ($pfeAnglais) {
@@ -337,11 +544,39 @@ class PlanningService
 
             $profStats[$jury2->id_professeur]['count']++;
 
+            $created++;
+
             if ($heure === '09:00') {
                 $profStats[$encadrant->id_professeur]['09_count']++;
                 $profStats[$jury1->id_professeur]['09_count']++;
                 $profStats[$jury2->id_professeur]['09_count']++;
             }
+
+            // Mettre à jour le tracking par jour
+            $dateKey = $dateCourante->toDateString();
+            if (!isset($profSoutenancesParJour[$encadrant->id_professeur])) {
+                $profSoutenancesParJour[$encadrant->id_professeur] = [];
+            }
+            if (!isset($profSoutenancesParJour[$encadrant->id_professeur][$dateKey])) {
+                $profSoutenancesParJour[$encadrant->id_professeur][$dateKey] = 0;
+            }
+            $profSoutenancesParJour[$encadrant->id_professeur][$dateKey]++;
+
+            if (!isset($profSoutenancesParJour[$jury1->id_professeur])) {
+                $profSoutenancesParJour[$jury1->id_professeur] = [];
+            }
+            if (!isset($profSoutenancesParJour[$jury1->id_professeur][$dateKey])) {
+                $profSoutenancesParJour[$jury1->id_professeur][$dateKey] = 0;
+            }
+            $profSoutenancesParJour[$jury1->id_professeur][$dateKey]++;
+
+            if (!isset($profSoutenancesParJour[$jury2->id_professeur])) {
+                $profSoutenancesParJour[$jury2->id_professeur] = [];
+            }
+            if (!isset($profSoutenancesParJour[$jury2->id_professeur][$dateKey])) {
+                $profSoutenancesParJour[$jury2->id_professeur][$dateKey] = 0;
+            }
+            $profSoutenancesParJour[$jury2->id_professeur][$dateKey]++;
 
             $pfesRestants = $pfesRestants->reject(
                 function ($item) use ($pfe) {
@@ -711,6 +946,63 @@ class PlanningService
 
         return $filiereParJour[$date][$filiere] ?? 0;
     }
+
+    /**
+     * Vérifier si un professeur a trop de soutenances ce jour
+     * CONTRAINTE : Répartition équitable des soutenances d'un prof sur les jours
+     * 
+     * Exemple interdit :
+     * Prof A:
+     * - Lundi → 10 soutenances
+     * - Mardi → 0
+     * - Mercredi → 0
+     * 
+     * Cette fonction empêche une distribution très inéquitable.
+     * Si un prof a N soutenances au total et D jours disponibles,
+     * il ne devrait pas avoir beaucoup plus de ceil(N/D) soutenances par jour.
+     */
+    private function profTooManyOnDay(
+        array $profSoutenancesParJour,
+        int $idProf,
+        string $date,
+        array $profStats,
+        bool $isFallback = false
+    ): bool {
+        // Nombre total de soutenances du professeur
+        $totalSoutenances = $profStats[$idProf]['count'] ?? 0;
+        
+        // Si le prof n'a aucune soutenance encore, pas de problème
+        if ($totalSoutenances === 0) {
+            return false;
+        }
+        
+        // Nombre de jours avec au moins une soutenance pour ce prof
+        $daysWithSoutenances = 0;
+        if (isset($profSoutenancesParJour[$idProf])) {
+            $daysWithSoutenances = count($profSoutenancesParJour[$idProf]);
+        }
+        
+        // Nombre de soutenances ce jour pour ce prof
+        $soutenancesToday = $profSoutenancesParJour[$idProf][$date] ?? 0;
+        
+        // Calcul de la limite équitable
+        // En fallback, on est plus lenient (limite × 1.5)
+        // En mode normal, on est strict (limite × 1)
+        $estimatedDays = max(3, $daysWithSoutenances + 1);
+        $maxPerDay = ceil($totalSoutenances / $estimatedDays) + 1;
+        
+        if ($isFallback) {
+            // Relaxer la contrainte de 50% en fallback
+            $maxPerDay = ceil($maxPerDay * 1.5);
+        }
+        
+        // Si en ajoutant une soutenance on dépasserait le maximum, refuser
+        if ($soutenancesToday >= $maxPerDay) {
+            return true;
+        }
+        
+        return false;
+    }
 }
 /*
 
@@ -727,6 +1019,7 @@ Les contraintes actuellement bien respectées :
 * Prof anglais pour PFE anglais
 * Saut du dimanche
 * Répartition partielle des soutenances
+* Répartition équitable des soutenances d'un prof sur les jours ✓ (NOUVEAU)
 
 Les contraintes simplifiées :
 
