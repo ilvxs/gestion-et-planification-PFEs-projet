@@ -58,18 +58,22 @@ class PlanningService
         $indexSalle = 0;
         $indexCreneau = 0;
 
-        $pfes = $pfes->sortBy(function ($pfe) use (
-            $filiereParJour,
-            $dateCourante
-        ) {
-            return $this->scoreFiliereJour(
-                $filiereParJour,
-                $dateCourante->toDateString(),
-                $pfe->etudiant->filiere
-            );
-        });
+        $pfesRestants = $pfes->values();
 
-        foreach ($pfes as $pfe) {
+        while ($pfesRestants->count() > 0) {
+
+            $pfe = $pfesRestants->sortBy(function ($pfe) use (
+                    $filiereParJour,
+                    $dateCourante
+                ) {
+
+                    return $this->scoreFiliereJour(
+                        $filiereParJour,
+                        $dateCourante->toDateString(),
+                        $pfe->etudiant->filiere
+                    );
+                })
+                ->first();
 
             $pfeAnglais =  $this->isEnglish($pfe->langue);
                             
@@ -339,7 +343,11 @@ class PlanningService
                 $profStats[$jury2->id_professeur]['09_count']++;
             }
 
-            $created++;
+            $pfesRestants = $pfesRestants->reject(
+                function ($item) use ($pfe) {
+                return $item->id_pfe === $pfe->id_pfe;
+            })
+            ->values();
 
             // avancer créneau
             $indexSalle++;
