@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\AffectationController;
 use App\Http\Controllers\PlanningController;
+use App\Http\Controllers\VerificationController;
 
 
 
@@ -25,3 +26,11 @@ Route::get('/planning', [PlanningController::class, 'index'])
 
 Route::post('/planning/generate', [PlanningController::class, 'generate'])
     ->name('planning.generate');
+
+   
+
+Route::get('/verification', [VerificationController::class, 'index'])
+    ->name('verification.index');
+
+Route::get('/verification/continuer', [VerificationController::class, 'continuerVersDocuments'])
+    ->name('verification.continuer');

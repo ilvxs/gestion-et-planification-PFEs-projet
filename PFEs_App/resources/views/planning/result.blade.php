@@ -62,7 +62,7 @@
 
     @endif
 
-    @if(!empty($result['planning']))
+    @if(empty($result['errors']) && !empty($result['planning']))
         <h2>Planning généré</h2>
 
         <table border="1" cellpadding="8">
@@ -107,5 +107,9 @@
     <a href="{{ route('planning.index') }}">
         Retour
     </a>
-
+    @if(empty($result['errors']))
+    <a href="{{ route('verification.index') }}">
+        Vérifier l’affectation et le planning
+    </a>
+    @endif
 </x-layout>
