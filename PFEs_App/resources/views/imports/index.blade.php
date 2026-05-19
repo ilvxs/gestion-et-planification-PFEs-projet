@@ -1,100 +1,59 @@
 <x-layout title="Importation des données">
+    <span class="step-badge">Étape 1 / 5</span>
+    <h1 class="mb-3">Importation des données PFE</h1>
+    <p class="text-muted mb-4">
+        Importez le fichier des étudiants/PFEs, le fichier des professeurs, puis choisissez la date de début et les salles disponibles.
+    </p>
 
-    <h1>Importation des données PFE</h1>
+    @if($errors->any())
+        <div class="alert alert-danger">
+            <strong>Veuillez corriger les erreurs suivantes :</strong>
+            <ul class="mb-0 mt-2">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
-    <hr>
-
-    <form
-        action="{{ route('imports.all') }}"
-        method="POST"
-        enctype="multipart/form-data">
-
+    <form action="{{ route('imports.all') }}" method="POST" enctype="multipart/form-data" class="row g-4">
         @csrf
 
-        <h2>Liste des etudiants</h2>
+        <div class="col-md-6">
+            <label class="form-label fw-semibold">Fichier des étudiants et PFEs</label>
+            <input type="file" name="students_file" class="form-control">
+            <small class="text-muted">Colonnes attendues : CNE, nom, prénom, email, filière, sujet, langue.</small>
+        </div>
 
-        <input
-            type="file"
-            name="students_file">
+        <div class="col-md-6">
+            <label class="form-label fw-semibold">Fichier des professeurs</label>
+            <input type="file" name="professeurs_file" class="form-control">
+            <small class="text-muted">Colonnes attendues : nom, prénom, spécialité.</small>
+        </div>
 
-        @error('students_file')
-            <p class="error">
-                {{ $message }}
-            </p>
-        @enderror
+        <div class="col-md-4">
+            <label class="form-label fw-semibold">Date de début des soutenances</label>
+            <input type="date" name="date_soutenance" class="form-control" value="{{ old('date_soutenance') }}">
+        </div>
 
-        <br><br>
+        <div class="col-12">
+            <label class="form-label fw-semibold">Salles disponibles</label>
+            <div class="row g-2">
+                @foreach(['Salle A', 'Salle B', 'Salle C', 'Salle D', 'Salle E'] as $salle)
+                    <div class="col-md-2 col-6">
+                        <label class="border rounded p-2 w-100 bg-light">
+                            <input type="checkbox" name="salles[]" value="{{ $salle }}" {{ in_array($salle, old('salles', [])) ? 'checked' : '' }}>
+                            {{ $salle }}
+                        </label>
+                    </div>
+                @endforeach
+            </div>
+        </div>
 
-        <h2>Liste des professeurs</h2>
-
-        <input
-            type="file"
-            name="professeurs_file">
-
-        @error('professeurs_file')
-            <p class="error">
-                {{ $message }}
-            </p>
-        @enderror
-
-        <br><br>
-
-        <h2>Date de début des soutenances</h2>
-
-        <input
-            type="date"
-            name="date_soutenance">
-
-        @error('date_soutenance')
-            <p class="error">
-                {{ $message }}
-            </p>
-        @enderror
-
-        <br><br>
-
-        <h2>Salles disponibles</h2>
-
-        <label>
-            <input type="checkbox" name="salles[]" value="Salle A">Salle A
-        </label>
-
-        <br>
-
-        <label>
-            <input type="checkbox" name="salles[]" value="Salle B">Salle B
-        </label>
-
-        <br>
-        
-        <label>
-            <input type="checkbox" name="salles[]" value="Salle C">Salle C
-        </label>
-
-        <br>
-
-        <label>
-            <input type="checkbox" name="salles[]" value="Salle D">Salle D
-        </label>
-
-        <br>
-
-        <label>
-            <input type="checkbox" name="salles[]" value="Salle E">Salle E
-        </label>
-    
-        @error('salles')
-            <p class="error">
-                {{ $message }}
-            </p>
-        @enderror
-
-        <br><br>
-
-        <button type="submit">
-            Importer toutes les données
-        </button>
-
+        <div class="col-12">
+            <button type="submit" class="btn btn-main px-4">
+                Importer toutes les données
+            </button>
+        </div>
     </form>
-
 </x-layout>

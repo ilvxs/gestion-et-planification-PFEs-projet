@@ -12,4 +12,6 @@ return [
     ],
 
     'duree_soutenance_minutes' => 60,
+
+    'annee_universitaire' => '2025-2026',
 ];

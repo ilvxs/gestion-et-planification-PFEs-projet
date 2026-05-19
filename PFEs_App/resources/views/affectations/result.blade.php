@@ -1,64 +1,64 @@
 <x-layout title="Résultat affectation">
+    <span class="step-badge">Étape 2 terminée</span>
 
-    <h1>Résultat de l'affectation</h1>
+    <h1 class="mb-4">Résultat de l'affectation</h1>
 
-    <p>
-        PFEs affectés : 
-        <strong>{{ $result['affected'] ?? 0 }}</strong>
-    </p>
+    <div class="border rounded p-3 bg-light mb-4">
+        <div class="text-muted">PFEs affectés</div>
+        <div class="fs-3 fw-bold">{{ $result['affected'] ?? 0 }}</div>
+    </div>
 
     @if(!empty($result['errors']))
-        <h2 style="color: red;">Erreurs</h2>
+        <div class="alert alert-danger">
+            <h5>Erreurs</h5>
 
-        <ul>
-            @foreach($result['errors'] as $error)
-                <li>{{ $error }}</li>
-            @endforeach
-        </ul>
-    @else
-        <p style="color: green;">
-            Affectation terminée avec succès.
-        </p>
-    @endif
-
-    @if(!empty($result['repartition']))
-        <h2>Répartition par professeur</h2>
-
-        <table border="1" cellpadding="8">
-            <thead>
-                <tr>
-                    <th>Professeur</th>
-                    <th>Specilite</th>
-                    <th>Nombre de PFEs encadrés</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                @foreach($result['repartition'] as $professeur)
-                    <tr>
-                        <td>{{ $professeur['nom'] }}</td>
-                        <td>{{ $professeur['specialite'] }}</td>
-                        <td>{{ $professeur['total'] }}</td>
-                    </tr>
+            <ul class="mb-0">
+                @foreach($result['errors'] as $error)
+                    <li>{{ $error }}</li>
                 @endforeach
-            </tbody>
-        </table>
+            </ul>
+        </div>
+
+        <a href="{{ route('imports.index') }}" class="btn btn-outline-secondary">
+            Retour à l’importation
+        </a>
+    @else
+        <div class="alert alert-success">
+            Affectation terminée avec succès.
+        </div>
     @endif
 
     @if(!empty($result['warnings']))
-        <h2 style="color: orange;">Alertes</h2>
+        <div class="alert alert-warning">
+            <h5>Alertes</h5>
 
-        <ul>
-            @foreach($result['warnings'] as $warning)
-                <li>{{ $warning }}</li>
-            @endforeach
-        </ul>
+            <ul class="mb-0">
+                @foreach($result['warnings'] as $warning)
+                    <li>{{ $warning }}</li>
+                @endforeach
+            </ul>
+        </div>
     @endif
 
-    <br>
+    @if(empty($result['errors']))
+        <hr class="my-4">
 
-    <a href="{{ route('affectations.index') }}">
-        Retour
-    </a>
+        <section>
+            <span class="step-badge">Étape 3 / 5</span>
 
+            <h2>Génération du planning</h2>
+
+            <p class="text-muted">
+                L’affectation est terminée. Vous pouvez maintenant générer le planning des soutenances.
+            </p>
+
+            <form action="{{ route('planning.generate') }}" method="POST">
+                @csrf
+
+                <button type="submit" class="btn btn-main">
+                    Générer le planning
+                </button>
+            </form>
+        </section>
+    @endif
 </x-layout>

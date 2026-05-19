@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Etudiant;
 use App\Models\Professeur;
 use App\Models\Pfe;
+use App\Models\Soutenance;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -106,6 +107,7 @@ class ImportExcelService
         try {
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
 
+            Soutenance::truncate();
             Pfe::truncate();
             Etudiant::truncate();
 
@@ -217,6 +219,7 @@ class ImportExcelService
 
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
 
+            Soutenance::truncate();
             Professeur::truncate();
 
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');

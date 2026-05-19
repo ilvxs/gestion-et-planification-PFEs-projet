@@ -6,11 +6,6 @@ use App\Services\PlanningService;
 
 class PlanningController extends Controller
 {
-    public function index()
-    {
-        return view('planning.index');
-    }
-
     public function generate(PlanningService $planningService)
     {
         $dateDebut = session('date_soutenance');
@@ -31,13 +26,15 @@ class PlanningController extends Controller
             ]);
         }
 
-        /*
-         * Si on régénère le planning, l'ancienne vérification complète
-         * n'est plus valable.
-         */
         session()->forget('verification_completed');
 
         $result = $planningService->generer($dateDebut, $salles);
+
+        if (empty($result['errors']) && (($result['created'] ?? 0) > 0)) {
+            session(['planning_generated' => true]);
+        } else {
+            session()->forget('planning_generated');
+        }
 
         return view('planning.result', [
             'result' => $result,

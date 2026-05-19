@@ -97,10 +97,9 @@ class VerificationService
                     );
                 } else {
                     $message = $pfesAnglaisSansEncadrantAnglais->count()
-                        . " PFE(s) anglais n'ont pas un encadrant de spécialité anglais.";
-
-                    $errors[] = $message;
-                    $checks[] = $this->checkFail($message);
+                        . " PFE(s) anglais n'ont pas un encadrant de spécialité anglais. "
+                        . "Les professeurs anglais peuvent être ajoutés comme jury pendant la planification.";                    $warnings[] = $message;
+                    $checks[] = $this->checkWarning($message);
                 }
             }
         }
@@ -206,7 +205,7 @@ class VerificationService
             return $this->resultatErreur('La durée de soutenance dans config/pfe.php est invalide.');
         }
 
-        $checks[] = $this->checkOk('Les créneaux et la durée sont chargés depuis config/pfe.php.');
+        $checks[] = $this->checkOk('Les créneaux et la durée sont valides.');
 
         $soutenances = Soutenance::with([
             'pfe.etudiant',
@@ -258,7 +257,7 @@ class VerificationService
         }
 
         if (empty($soutenancesHorsConfig)) {
-            $checks[] = $this->checkOk('Toutes les heures de soutenance existent dans config/pfe.php.');
+            $checks[] = $this->checkOk('Toutes les heures de soutenance sont valides.');
         } else {
             $message = count($soutenancesHorsConfig) . ' soutenance(s) utilisent une heure absente de config/pfe.php.';
 
@@ -287,7 +286,7 @@ class VerificationService
         }
 
         if (empty($conflitsJurys)) {
-            $checks[] = $this->checkOk('Tous les jurys respectent : Jury1 ≠ Jury2 ≠ Encadrant.');
+            $checks[] = $this->checkOk('Tous les jurys sont differents : Jury1 ≠ Jury2 ≠ Encadrant.');
         } else {
             $message = count($conflitsJurys) . ' soutenance(s) ont un conflit entre encadrant, jury1 et jury2.';
 
@@ -354,7 +353,7 @@ class VerificationService
         }
 
         if (empty($conflitsProfs)) {
-            $checks[] = $this->checkOk("Aucun professeur n'est programmé dans deux soutenances au même horaire.");
+            $checks[] = $this->checkOk("Aucun professeur n'est programmé dans deux soutenances au meme horaire.");
         } else {
             $message = count($conflitsProfs) . ' conflit(s) professeur meme horaire détecté(s).';
 
@@ -517,16 +516,13 @@ class VerificationService
             if ($tousAnglaisSatures) {
                 $message = count($pfesAnglaisSansProfAnglais)
                     . ' PFE(s) anglais sans professeur anglais, mais tous les professeurs anglais ont atteint leur charge équitable.';
-
-                $warnings[] = $message;
-                $checks[] = $this->checkWarning($message);
             } else {
                 $message = count($pfesAnglaisSansProfAnglais)
-                    . ' PFE(s) anglais sans professeur anglais alors que les professeurs anglais ne sont pas tous saturés.';
-
-                $errors[] = $message;
-                $checks[] = $this->checkFail($message);
+                    . ' PFE(s) anglais sans professeur anglais. meme si il(s) existe(ent) un/des prof(s) anglais non sature(s).';
             }
+
+            $warnings[] = $message;
+            $checks[] = $this->checkWarning($message);
         }
 
         /*
@@ -808,7 +804,7 @@ class VerificationService
         $tolerance = max(1, (int) ceil($moyenne * 0.30));
 
         if (($max - $min) > $tolerance + 1) {
-            return "Répartition globale des professeurs à surveiller : Min={$min}, Max={$max}, Moyenne=" . round($moyenne, 2) . ".";
+            return "Répartition globale des professeurs à surveiller : Min={$min}, Max={$max}.";
         }
 
         return null;
