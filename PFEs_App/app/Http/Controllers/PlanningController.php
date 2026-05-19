@@ -21,7 +21,7 @@ class PlanningController extends Controller
                 'result' => [
                     'created' => 0,
                     'errors' => [
-                        'La date de soutenance ou les salles ne sont pas disponibles. Veuillez refaire l’importation.'
+                        "La date de soutenance ou les salles ne sont pas disponibles. Veuillez refaire l'importation."
                     ],
                     'warnings' => [],
                     'planning' => [],

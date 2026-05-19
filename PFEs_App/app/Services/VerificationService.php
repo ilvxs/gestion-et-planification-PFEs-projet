@@ -571,15 +571,13 @@ class VerificationService
         }
 
         /*
-        |--------------------------------------------------------------------------
-        | 13. Éviter le même horaire répété pour un professeur
-        |--------------------------------------------------------------------------
+        13. Éviter le même horaire répété pour un professeur
         */
 
         $warningHoraire = $this->verifierRepetitionHoraires($soutenances, $creneaux);
 
         if ($warningHoraire === null) {
-            $checks[] = $this->checkOk('Aucun professeur n’est trop souvent placé au même horaire.');
+            $checks[] = $this->checkOk("Aucun professeur n'est trop souvent placé au même horaire.");
         } else {
             $warnings[] = $warningHoraire;
             $checks[] = $this->checkWarning($warningHoraire);

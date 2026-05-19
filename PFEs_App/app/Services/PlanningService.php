@@ -311,11 +311,7 @@ class PlanningService
             );
 
             if ($bestRelaxed) {
-                $bestRelaxed['warning'] =
-                    "PFE {$pfe->id_pfe} en anglais planifié sans professeur anglais : "
-                    . "aucun professeur anglais n'était disponible sans conflit horaire ou soutenance consécutive. "
-                    . "Cette situation sera signalée dans la phase de vérification.";
-
+                $bestRelaxed['warning'] = $this->warningAnglaisRelache($pfe);
                 $bestRelaxed['score'] += 300;
 
                 return $bestRelaxed;
@@ -371,7 +367,7 @@ class PlanningService
                 $warning = null;
 
                 if ($this->isEnglish($pfe->langue) && !$anglaisPresent) {
-                    $warning = $this->warningAnglaisRelache($pfe, $candidats, $maxParticipations);
+                    $warning = $this->warningAnglaisRelache($pfe);
                     $score += 120;
                 }
 
@@ -606,19 +602,14 @@ class PlanningService
         return false;
     }
 
-    private function warningAnglaisRelache($pfe, $professeurs, int $maxParticipations): string
+    private function warningAnglaisRelache($pfe): string
     {
-        $profsAnglais = $professeurs->filter(function ($prof) {
-            return $this->isEnglish($prof->specialite);
-        });
-
-        if ($profsAnglais->isEmpty()) {
-            return "PFE {$pfe->id_pfe} en anglais planifié sans professeur anglais : aucun professeur de spécialité anglais n'existe.";
-        }
-
-        return "PFE {$pfe->id_pfe} en anglais planifié sans professeur anglais : tous les professeurs anglais ont atteint la charge équitable ({$maxParticipations} participations).";
+        return "PFE {$pfe->id_pfe} en anglais planifié sans professeur anglais : "
+            . "tous les professeurs anglais étaient soit indisponibles "
+            . "(conflit horaire ou soutenance consécutive), "
+            . "soit déjà au niveau de charge équitable.";
     }
-
+   
     private function diagnostiquerEchecPfe(
         $pfe,
         $professeurs,
@@ -668,12 +659,17 @@ class PlanningService
     private function sauvegarderPlanning(array $planning): void
     {
         $model = new Soutenance();
+
         $usesTimestamps = $model->usesTimestamps();
+        $createdAtColumn = $model->getCreatedAtColumn();
+        $updatedAtColumn = $model->getUpdatedAtColumn();
+
         $now = now();
 
         $rows = [];
 
         foreach ($planning as $item) {
+
             $row = [
                 'date_soutenance' => $item['date'],
                 'heure_debut' => $item['heure'],
@@ -684,18 +680,31 @@ class PlanningService
             ];
 
             if ($usesTimestamps) {
-                $row[$model->getCreatedAtColumn()] = $now;
-                $row[$model->getUpdatedAtColumn()] = $now;
+                $row[$createdAtColumn] = $now;
+                $row[$updatedAtColumn] = $now;
             }
 
             $rows[] = $row;
         }
 
         DB::transaction(function () use ($rows) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Supprimer l'ancien planning
+            |--------------------------------------------------------------------------
+            */
+
             Soutenance::query()->delete();
 
+            /*
+            |--------------------------------------------------------------------------
+            | Réinsérer le nouveau planning
+            |--------------------------------------------------------------------------
+            */
+
             if (!empty($rows)) {
-                Soutenance::query()->insert($rows);
+                Soutenance::insert($rows);
             }
         });
     }
