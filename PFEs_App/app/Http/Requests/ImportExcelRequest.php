@@ -37,7 +37,8 @@ class ImportExcelRequest extends FormRequest
 
             'date_soutenance' => [
                 'required',
-                'date'
+                'date',
+                'after:today'
             ],
 
             'salles' => [
@@ -81,6 +82,9 @@ class ImportExcelRequest extends FormRequest
 
             'date_soutenance.date'
                 => 'Veuillez choisir une date valide.',
+
+            'date_soutenance.after'
+                => 'La date de soutenance doit être après aujourd\'hui.',   
 
             'salles.required'
                 => 'Veuillez sélectionner au moins une salle.',
