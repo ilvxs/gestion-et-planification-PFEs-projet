@@ -1,17 +1,12 @@
 <?php
 
 return [
-    'creneaux' => [
-        '09:00',
-        '10:00',
-        '11:00',
-        '14:00',
-        '15:00',
-        '16:00',
-        '17:00',
-    ],
-
     'duree_soutenance_minutes' => 60,
 
-    'annee_universitaire' => '2025-2026',
+    'annee_universitaire' => (function () {
+        $date = now();
+        $annee = $date->month >= 9 ? $date->year : $date->year - 1;
+        
+        return $annee . '-' . ($annee + 1);
+    })(),
 ];

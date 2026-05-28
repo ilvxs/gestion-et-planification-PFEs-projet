@@ -12,7 +12,7 @@ class PlanningService
 {
     private const DEFAULT_MAX_EXTRA_DAYS = 180;
 
-    public function generer($dateDebut, $salles): array
+    public function generer($dateDebut, $salles, $creneaux): array
     {
         set_time_limit(300);
 
@@ -20,7 +20,7 @@ class PlanningService
         $warnings = [];
 
         $salles = $this->normaliserSalles($salles);
-        $creneaux = $this->normaliserCreneaux(config('pfe.creneaux', []));
+        $creneaux = $this->normaliserCreneaux($creneaux);
         $duree = (int) config('pfe.duree_soutenance_minutes', 60);
         $maxExtraDays = (int) config('pfe.max_extra_days', self::DEFAULT_MAX_EXTRA_DAYS);
 
@@ -33,7 +33,7 @@ class PlanningService
         }
 
         if (empty($creneaux)) {
-            $errors[] = 'Aucun créneau défini dans config/pfe.php.';
+            $errors[] = 'Aucun creneau selectionne.';
         }
 
         if ($duree <= 0) {

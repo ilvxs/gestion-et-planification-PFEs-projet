@@ -192,13 +192,13 @@ class VerificationService
 
         $creneaux = array_values(array_map(
             fn ($heure) => $this->normaliserHeure((string) $heure),
-            config('pfe.creneaux', [])
+            session('creneaux', [])
         ));
 
         $dureeMinutes = (int) config('pfe.duree_soutenance_minutes', 60);
 
         if (empty($creneaux)) {
-            return $this->resultatErreur('Aucun créneau trouvé dans config/pfe.php.');
+            return $this->resultatErreur('Aucun créneau selectionne.');
         }
 
         if ($dureeMinutes <= 0) {

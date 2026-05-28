@@ -37,6 +37,26 @@
         </div>
 
         <div class="col-12">
+            <label class="form-label fw-semibold">Créneaux disponibles</label>
+
+            <div class="row g-2">
+                @foreach(['08:00','09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'] as $creneau)
+                    <div class="col-md-2 col-6">
+                        <label class="border rounded p-2 w-100 bg-light">
+                            <input
+                                type="checkbox"
+                                name="creneaux[]"
+                                value="{{ $creneau }}"
+                                {{ in_array($creneau, old('creneaux', [])) ? 'checked' : '' }}
+                            >
+                            {{ $creneau }}
+                        </label>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        <div class="col-12">
             <label class="form-label fw-semibold">Salles disponibles</label>
             <div class="row g-2">
                 @foreach(['Salle A', 'Salle B', 'Salle C', 'Salle D', 'Salle E'] as $salle)

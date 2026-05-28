@@ -135,7 +135,7 @@ class DocumentController extends Controller
 
             $template = new TemplateProcessor($templatePath);
 
-            $template->setValue('annee_universitaire', config('pfe.annee_universitaire', '2024-2025'));
+            $template->setValue('annee_universitaire', config('pfe.annee_universitaire'));
 
             $template->setValue(
                 'nom_prenom_etudiant',

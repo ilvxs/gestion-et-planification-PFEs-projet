@@ -28,6 +28,7 @@ class ImportController extends Controller
         session([
             'date_soutenance' => $request->date_soutenance,
             'salles' => $request->salles,
+            'creneaux' => $request->creneaux,
         ]);
 
         $studentsResult = $this->importService->importEtudiants(

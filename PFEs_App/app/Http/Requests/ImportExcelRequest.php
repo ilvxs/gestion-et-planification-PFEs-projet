@@ -48,6 +48,12 @@ class ImportExcelRequest extends FormRequest
 
             'salles.*' => [
                 'string'
+            ],
+
+            'creneaux' => [
+                'required',
+                'array',
+                'min:1'
             ]
         ];
     }
@@ -93,7 +99,16 @@ class ImportExcelRequest extends FormRequest
                 => 'Le format des salles est invalide.',
 
             'salles.*.string'
-                => 'Une des salles sélectionnées est invalide.'
+                => 'Une des salles sélectionnées est invalide.',
+
+            'creneaux.required'
+                => 'Veuillez sélectionner au moins un créneau.',
+
+            'creneaux.array'
+                => 'Le format des créneaux est invalide.',
+
+            'creneaux.min'
+                => 'Veuillez sélectionner au moins un créneau.'
         ];    
     }
 }

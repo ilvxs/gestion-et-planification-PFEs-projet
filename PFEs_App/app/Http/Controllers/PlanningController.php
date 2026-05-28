@@ -10,8 +10,9 @@ class PlanningController extends Controller
     {
         $dateDebut = session('date_soutenance');
         $salles = session('salles');
+        $creneaux = session('creneaux');
 
-        if (!$dateDebut || empty($salles)) {
+        if (!$dateDebut || empty($salles) || empty($creneaux)) {
             return view('planning.result', [
                 'result' => [
                     'created' => 0,
@@ -28,7 +29,7 @@ class PlanningController extends Controller
 
         session()->forget('verification_completed');
 
-        $result = $planningService->generer($dateDebut, $salles);
+        $result = $planningService->generer($dateDebut, $salles, $creneaux);
 
         if (empty($result['errors']) && (($result['created'] ?? 0) > 0)) {
             session(['planning_generated' => true]);
