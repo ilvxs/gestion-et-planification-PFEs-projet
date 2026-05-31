@@ -59,7 +59,7 @@
         <div class="col-12">
             <label class="form-label fw-semibold">Salles disponibles</label>
             <div class="row g-2">
-                @foreach(['Salle A', 'Salle B', 'Salle C', 'Salle D', 'Salle E'] as $salle)
+                @foreach(['Salle 4 AB', 'Salle 5 AB', 'Salle 16 AB', 'Salle 17 AB', 'Amphi A', 'Amphi B'] as $salle)
                     <div class="col-md-2 col-6">
                         <label class="border rounded p-2 w-100 bg-light">
                             <input type="checkbox" name="salles[]" value="{{ $salle }}" {{ in_array($salle, old('salles', [])) ? 'checked' : '' }}>

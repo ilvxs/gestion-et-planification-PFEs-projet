@@ -168,17 +168,17 @@ class DocumentController extends Controller
             */
             $template->setValue(
                 'jury_president',
-                $this->nomComplet($soutenance->jury1)
+                $this->nomComplet($encadrant)
             );
 
             $template->setValue(
                 'jury_rapporteur_1',
-                $this->nomComplet($soutenance->jury2)
+                $this->nomComplet($soutenance->jury1)
             );
 
             $template->setValue(
                 'jury_rapporteur_2',
-                $this->nomComplet($encadrant)
+                $this->nomComplet($soutenance->jury2)
             );
 
             $template->setValue(
