@@ -153,13 +153,8 @@ class PlanningService
 
             $meilleureAffectation = null;
 
-            /*
-            |--------------------------------------------------------------------------
-            | Limiter les PFEs testés pour ce slot
-            |--------------------------------------------------------------------------
-            | Au lieu de tester tous les PFEs restants, on teste d'abord les PFEs
-            | les plus prioritaires : difficiles + filière moins utilisée ce jour.
-            */
+            /* au lieu de tester tous les PFEs restants, on teste d'abord les PFEs les plus prioritaires : difficiles + filière moins utilisée ce jour */
+
             $pfesATester = $this->selectionnerPfesATesterPourSlot(
                 $pfesRestants,
                 $pfeMeta,
@@ -962,16 +957,9 @@ class PlanningService
 
                 $filiereCountToday = $repartitionFilieres[$date][$filiere] ?? 0;
 
-                /*
-                |--------------------------------------------------------------------------
-                | Score de priorité PFE
-                |--------------------------------------------------------------------------
-                | Plus le score est petit, plus le PFE est testé tôt.
-                |
-                | - difficulté élevée => priorité élevée
-                | - filière déjà beaucoup utilisée ce jour => priorité plus faible
-                |--------------------------------------------------------------------------
-                */
+                /* plus le score est petit, plus le PFE est teste tot.
+                  - difficulte elevee => priorite elevee
+                  - filiere deja beaucoup utilisee ce jour => priorite plus faible */
 
                 return ($filiereCountToday * 50) - $difficulty;
             })
