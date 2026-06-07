@@ -22,7 +22,7 @@
         <div class="col-md-6">
             <label class="form-label fw-semibold">Fichier des étudiants et PFEs</label>
             <input type="file" name="students_file" class="form-control">
-            <small class="text-muted">Colonnes attendues : CNE, nom, prénom, email, filière, sujet, langue.</small>
+            <small class="text-muted">Colonnes attendues : CNE, nom, prénom, email personnel, email académique, filière, sujet, langue.</small>
         </div>
 
         <div class="col-md-6">

@@ -52,7 +52,7 @@ class AffectationService
                 $charges[$professeur->id_professeur] = Pfe::where(
                     'id_encadrant',
                     $professeur->id_professeur
-                )->count();
+                    )->count();
             }
 
             // Separer les PFEs ang et les autres
