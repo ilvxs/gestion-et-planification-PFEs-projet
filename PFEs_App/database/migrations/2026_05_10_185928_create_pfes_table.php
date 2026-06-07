@@ -6,9 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+    
     public function up(): void
 {
     Schema::create('pfes', function (Blueprint $table) {
@@ -16,7 +14,7 @@ return new class extends Migration
         $table->string('sujet');
         $table->string('langue');
         
-        // Clé étrangère 1 : Etudiant (UNIQUE car un PFE = 1 étudiant selon le MLD)
+        // Clé étrangère 1 : Etudiant (UNIQUE car un PFE = 1 étudiant)
         $table->unsignedBigInteger('id_etudiant')->unique(); 
         $table->foreign('id_etudiant')->references('id_etudiant')->on('etudiants')->onDelete('cascade');
 
@@ -28,9 +26,6 @@ return new class extends Migration
     });
 }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('pfes');

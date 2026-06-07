@@ -158,13 +158,9 @@ class DocumentController extends Controller
             );
 
             /*
-            * Dans ton modèle, il y a 3 lignes jury :
-            * Président, Rapporteur, Rapporteur.
-            *
-            * Ici :
-            * - jury1 = Président
-            * - jury2 = Rapporteur
-            * - encadrant = Rapporteur
+             jury1 = Président
+             jury2 = Rapporteur
+             encadrant = Rapporteur
             */
             $template->setValue(
                 'jury_president',

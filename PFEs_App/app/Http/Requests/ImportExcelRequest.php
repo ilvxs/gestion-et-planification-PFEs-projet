@@ -58,9 +58,7 @@ class ImportExcelRequest extends FormRequest
         ];
     }
 
-    /**
-     * Custom error messages.
-     */
+    // error messages
     public function messages(): array
     {
         return [

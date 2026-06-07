@@ -6,9 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+    
         public function up(): void
     {
         Schema::create('soutenances', function (Blueprint $table) {
@@ -17,7 +15,7 @@ return new class extends Migration
             $table->time('heure_debut');
             $table->string('salle');
 
-            // Clé étrangère 1 : PFE (UNIQUE selon le MLD)
+            // Clé étrangère 1 : PFE (UNIQUE)
             $table->unsignedBigInteger('id_pfe')->unique();
             $table->foreign('id_pfe')->references('id_pfe')->on('pfes')->onDelete('cascade');
 
@@ -34,9 +32,7 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
+    
     public function down(): void
     {
         Schema::dropIfExists('soutenances');

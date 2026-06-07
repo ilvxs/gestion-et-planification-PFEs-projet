@@ -13,9 +13,9 @@ use Illuminate\Http\UploadedFile; // Indispensable pour la synchro avec le contr
 
 class ImportExcelService
 {
-    /**
-     * Lit le fichier à partir de l'objet UploadedFile envoyé par le contrôleur
-     */
+    
+    //Lit le fichier à partir de l'objet UploadedFile envoyé par le contrôleur
+    
     private function readExcel(UploadedFile $file): array
     {
         // On récupère le chemin temporaire du fichier envoyé par la requête
@@ -23,21 +23,17 @@ class ImportExcelService
         return $spreadsheet->getActiveSheet()->toArray();
     }
 
-    /**
-     * Valide les données d'une ligne selon le MLD
-     */
+    
+     //Validation des données d'une ligne 
+     
     public function validateRow(array $data, array $rules)
     {
         return Validator::make($data, $rules);
     }
 
     
-    /**
-     * Importation des Étudiants + création automatique des PFEs
-        */
-    /**
-     * Importation des Étudiants + RÉINITIALISATION + DOUBLONS FICHIER
-     */
+    //Importation etud et création automatique des PFEs
+    
     public function importEtudiants(UploadedFile $file): array
     {
         $rows = $this->readExcel($file);
@@ -45,7 +41,7 @@ class ImportExcelService
         $dataToImport = []; // Stockage temporaire des lignes valides
         $seenCNEs = [];
 
-        // --- ÉTAPE 1 : VALIDATION DE TOUT LE FICHIER ---
+        //1- validation de tout le fichier
         foreach ($rows as $index => $row) {
             if ($index === 0) continue; 
             if (empty(array_filter($row))) continue;
@@ -92,7 +88,7 @@ class ImportExcelService
             $dataToImport[] = $data;
         }
 
-        // --- ÉTAPE 2 : INSERTION OU REFUS ---
+        //2- insertion ou refus
         
         // S'il y a la moindre erreur, on arrête tout ici
         if (count($errors) > 0) {
@@ -142,9 +138,9 @@ class ImportExcelService
             ];
         }
     }
-        /**
-         * Importation des Professeurs
-         */
+        
+        //Importation des Professeurs
+        
     public function importProfesseurs(UploadedFile $file): array
     {
         $rows = $this->readExcel($file);
@@ -154,7 +150,7 @@ class ImportExcelService
         $dataToImport = [];
         $seenProfessors = [];
 
-        // --- ÉTAPE 1 : VALIDATION COMPLÈTE ---
+        //1- Validation complete 
         foreach ($rows as $index => $row) {
 
             if ($index === 0 || $index === 1) continue;
@@ -205,7 +201,7 @@ class ImportExcelService
             $dataToImport[] = $data;
         }
 
-        // --- ÉTAPE 2 : REFUS SI ERREURS ---
+        //2-refus si erreur
         if (count($errors) > 0) {
 
             return [
@@ -214,7 +210,7 @@ class ImportExcelService
             ];
         }
 
-        // --- ÉTAPE 3 : SUPPRESSION + INSERTION ---
+        //3- supp et insertion
         try {
 
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
@@ -250,10 +246,8 @@ class ImportExcelService
         }
     }
 
-        
-        /**
-     * Création d'un PFE pour un étudiant
-     */
+    //Création d'un PFE pour un étudiant
+     
     private function importPfes(array $data, Etudiant $etudiant): void
     {
         Pfe::create([
