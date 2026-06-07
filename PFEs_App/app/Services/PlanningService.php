@@ -12,6 +12,9 @@ class PlanningService
 {
     private const DEFAULT_MAX_EXTRA_DAYS = 180;
 
+    /*nombre maximum de PFEs testes pour chaque slot*/
+    private const MAX_PFES_TESTES_PAR_SLOT = 15;
+
     public function generer($dateDebut, $salles, $creneaux): array
     {
         set_time_limit(300);
@@ -50,9 +53,36 @@ class PlanningService
         $pfes = Pfe::with(['etudiant', 'encadrant'])->get()->values();
         $professeurs = Professeur::all()->values();
 
+        $pfeMeta = $this->initialiserPfeMeta($pfes);
+        $profMeta = $this->initialiserProfMeta($professeurs);
+
         $repartitionProfs = $this->initialiserRepartitionProfs($professeurs);
         $repartitionFilieres = [];
         $planning = [];
+
+        $totalProfesseurs = $professeurs->count();
+
+        $totalProfesseursInfo = collect($profMeta)
+            ->filter(function ($meta) {
+                return $meta['is_info'];
+            })
+            ->count();
+
+        $idsProfsAnglais = collect($profMeta)
+            ->filter(function ($meta) {
+                return $meta['is_english'];
+            })
+            ->keys()
+            ->map(function ($id) {
+                return (int) $id;
+            })
+            ->values()
+            ->all();
+
+        $occupation = [
+            'salles' => [],
+            'profs' => [],
+        ];
 
         if ($professeurs->count() < 3 && $pfes->isNotEmpty()) {
             $errors[] = 'Impossible de générer le planning : il faut au moins 3 professeurs.';
@@ -67,26 +97,17 @@ class PlanningService
             }
 
             if (!$pfe->etudiant) {
-                $warnings[] = "PFE {$pfe->id_pfe} : étudiant introuvable, filière considérée comme Inconnue.";
+                $warnings[] = "PFE {$pfe->id_pfe} : étudiant introuvable, considéré comme Inconnue.";
             }
 
-            $jurysPossibles = $professeurs->filter(function ($prof) use ($encadrant) {
-                return (int) $prof->id_professeur !== (int) $encadrant->id_professeur;
-            })->count();
+            $jurysPossibles = $totalProfesseurs - 1;
 
             if ($jurysPossibles < 2) {
                 $errors[] = "PFE {$pfe->id_pfe} non planifiable : moins de deux jurys distincts disponibles hors encadrant.";
                 continue;
             }
 
-            $infoPossibles = $this->isInfo($encadrant->specialite) ? 1 : 0;
-
-            $infoPossibles += $professeurs->filter(function ($prof) use ($encadrant) {
-                return (int) $prof->id_professeur !== (int) $encadrant->id_professeur
-                    && $this->isInfo($prof->specialite);
-            })->count();
-
-            if ($infoPossibles < 2) {
+            if ($totalProfesseursInfo < 2) {
                 $errors[] = "PFE {$pfe->id_pfe} non planifiable : impossible d'avoir au moins 2 professeurs de spécialité informatique.";
             }
         }
@@ -107,24 +128,53 @@ class PlanningService
             : 0;
 
         $slots = $this->genererSlots($dateDepart, $salles, $creneaux, $maxExtraDays);
-        $pfesRestants = $pfes;
+        $pfesRestants = $pfes->keyBy('id_pfe');
 
         foreach ($slots as $slot) {
             if ($pfesRestants->isEmpty()) {
                 break;
             }
 
-            if ($this->salleOccupee($planning, $slot['date'], $slot['heure'], $slot['salle'], $duree)) {
+            if ($this->salleOccupeeRapide($occupation, $slot['date'], $slot['minute'], $slot['salle'], $duree)) {
+                continue;
+            }
+
+            /* professeurs disponibles pour ce slot, on les calcule une seule fois pour éviter de refaire le meme filtre pour chaque PFE restant*/
+            $professeursDisponiblesSlot = $this->professeursDisponiblesPourSlot(
+                $professeurs,
+                $occupation,
+                $slot,
+                $duree
+            );
+
+            if ($professeursDisponiblesSlot->count() < 3) {
                 continue;
             }
 
             $meilleureAffectation = null;
 
-            foreach ($pfesRestants as $pfe) {
+            /*
+            |--------------------------------------------------------------------------
+            | Limiter les PFEs testés pour ce slot
+            |--------------------------------------------------------------------------
+            | Au lieu de tester tous les PFEs restants, on teste d'abord les PFEs
+            | les plus prioritaires : difficiles + filière moins utilisée ce jour.
+            */
+            $pfesATester = $this->selectionnerPfesATesterPourSlot(
+                $pfesRestants,
+                $pfeMeta,
+                $repartitionFilieres,
+                $slot['date']
+            );
+
+            foreach ($pfesATester as $pfe) {
                 $affectation = $this->meilleureAffectationPourPfe(
                     $pfe,
-                    $professeurs,
-                    $planning,
+                    $professeursDisponiblesSlot,
+                    $pfeMeta,
+                    $profMeta,
+                    $idsProfsAnglais,
+                    $occupation,
                     $slot,
                     $repartitionProfs,
                     $repartitionFilieres,
@@ -136,7 +186,7 @@ class PlanningService
                     continue;
                 }
 
-                $scoreTri = $affectation['score'] - $this->scoreDifficultePfe($pfe);
+                $scoreTri = $affectation['score'] - ($pfeMeta[(int) $pfe->id_pfe]['difficulty'] ?? 0);
 
                 if (
                     !$meilleureAffectation ||
@@ -165,7 +215,7 @@ class PlanningService
             $jury1 = $meilleureAffectation['jury1'];
             $jury2 = $meilleureAffectation['jury2'];
 
-            if (!$this->affectationRespecteContraintesDures($planning, $slot, $pfe, $jury1, $jury2, $duree)) {
+            if (!$this->affectationRespecteContraintesDures($occupation, $slot, $pfe, $jury1, $jury2, $duree)) {
                 $errors[] = "PFE {$pfe->id_pfe} : affectation rejetée car une contrainte dure serait violée.";
                 break;
             }
@@ -176,12 +226,20 @@ class PlanningService
 
             $planning[] = $this->formatPlanningItem($slot, $pfe, $encadrant, $jury1, $jury2);
 
+            $this->ajouterOccupation(
+                $occupation,
+                $slot['date'],
+                $slot['minute'],
+                $slot['salle'],
+                [$encadrant, $jury1, $jury2]
+            );
             $this->mettreAJourRepartitionProfs($repartitionProfs, [$encadrant, $jury1, $jury2], $slot['date'], $slot['heure']);
-            $this->mettreAJourRepartitionFilieres($repartitionFilieres, $slot['date'], $this->filierePfe($pfe));
-
-            $pfesRestants = $pfesRestants->reject(function ($item) use ($pfe) {
-                return (int) $item->id_pfe === (int) $pfe->id_pfe;
-            })->values();
+            $this->mettreAJourRepartitionFilieres(
+                $repartitionFilieres,
+                $slot['date'],
+                $pfeMeta[(int) $pfe->id_pfe]['filiere'] ?? $this->filierePfe($pfe)
+            );
+            $pfesRestants->forget((int) $pfe->id_pfe);
         }
 
         foreach ($pfesRestants as $pfe) {
@@ -218,8 +276,11 @@ class PlanningService
 
     private function meilleureAffectationPourPfe(
         $pfe,
-        $professeurs,
-        array $planning,
+        $professeursDisponiblesSlot,
+        array $pfeMeta,
+        array $profMeta,
+        array $idsProfsAnglais,
+        array $occupation,
         array $slot,
         array $repartitionProfs,
         array $repartitionFilieres,
@@ -227,41 +288,34 @@ class PlanningService
         int $duree
     ): ?array {
         $encadrant = $pfe->encadrant;
+        $pfeAnglais = $pfeMeta[(int) $pfe->id_pfe]['is_english']
+            ?? $this->isEnglish($pfe->langue);
 
         if (!$encadrant) {
             return null;
         }
 
-        if (!$this->profDisponiblePourCreneau(
-            $planning,
+        if (!$this->profDisponiblePourCreneauRapide(
+            $occupation,
             (int) $encadrant->id_professeur,
             $slot['date'],
-            $slot['heure'],
+            $slot['minute'],
             $duree
         )) {
             return null;
         }
 
-        $anglaisObligatoire = $this->anglaisObligatoire(
-            $pfe,
+        $anglaisObligatoire = $this->anglaisObligatoireRapide(
+            $pfeAnglais,
             $encadrant,
-            $professeurs,
+            $idsProfsAnglais,
+            $profMeta,
             $repartitionProfs,
             $maxParticipations
         );
 
-        $candidats = $professeurs->filter(function ($prof) use ($encadrant, $planning, $slot, $duree) {
-            if ((int) $prof->id_professeur === (int) $encadrant->id_professeur) {
-                return false;
-            }
-
-            return $this->profDisponiblePourCreneau(
-                $planning,
-                (int) $prof->id_professeur,
-                $slot['date'],
-                $slot['heure'],
-                $duree
-            );
+        $candidats = $professeursDisponiblesSlot->filter(function ($prof) use ($encadrant) {
+            return (int) $prof->id_professeur !== (int) $encadrant->id_professeur;
         })->values();
 
         if ($candidats->count() < 2) {
@@ -270,61 +324,35 @@ class PlanningService
 
         /*
         |--------------------------------------------------------------------------
-        | Premier essai :
-        | Si le PFE est anglais, on essaie d'abord avec un professeur anglais.
+        | Recherche de la meilleure paire de jurys
+        |--------------------------------------------------------------------------
+        | La fonction gère maintenant en un seul passage :
+        | - le cas normal
+        | - le cas PFE anglais avec professeur anglais
+        | - le cas PFE anglais sans professeur anglais avec warning
         |--------------------------------------------------------------------------
         */
 
-        $best = $this->chercherMeilleurePaireJurys(
+        return $this->chercherMeilleurePaireJurys(
             $pfe,
             $encadrant,
             $candidats,
+            $pfeMeta,
+            $profMeta,
             $slot,
             $repartitionProfs,
             $repartitionFilieres,
             $maxParticipations,
             $anglaisObligatoire
         );
-
-        if ($best) {
-            return $best;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Deuxième essai :
-        | Si aucun professeur anglais ne peut être placé sans conflit,
-        | on relâche la contrainte anglais et on ajoute un warning.
-        |--------------------------------------------------------------------------
-        */
-
-        if ($this->isEnglish($pfe->langue) && $anglaisObligatoire) {
-            $bestRelaxed = $this->chercherMeilleurePaireJurys(
-                $pfe,
-                $encadrant,
-                $candidats,
-                $slot,
-                $repartitionProfs,
-                $repartitionFilieres,
-                $maxParticipations,
-                false
-            );
-
-            if ($bestRelaxed) {
-                $bestRelaxed['warning'] = $this->warningAnglaisRelache($pfe);
-                $bestRelaxed['score'] += 300;
-
-                return $bestRelaxed;
-            }
-        }
-
-        return null;
     }
 
     private function chercherMeilleurePaireJurys(
         $pfe,
         $encadrant,
         $candidats,
+        array $pfeMeta,
+        array $profMeta,
         array $slot,
         array $repartitionProfs,
         array $repartitionFilieres,
@@ -332,9 +360,38 @@ class PlanningService
         bool $exigerAnglais
     ): ?array {
         $best = null;
+        $bestSansAnglais = null;
 
-        for ($i = 0; $i < $candidats->count(); $i++) {
-            for ($j = $i + 1; $j < $candidats->count(); $j++) {
+        $pfeAnglais = $pfeMeta[(int) $pfe->id_pfe]['is_english']
+            ?? $this->isEnglish($pfe->langue);
+
+        $encadrantInfo = $this->profIsInfo($encadrant, $profMeta);
+
+        $candidatsInfo = $candidats->filter(function ($prof) use ($profMeta) {
+            return $this->profIsInfo($prof, $profMeta);
+        })->values();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Optimisation de la contrainte "minimum 2 profs info"
+        |--------------------------------------------------------------------------
+        | Si l'encadrant n'est pas info, les deux jurys doivent être info.
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$encadrantInfo) {
+            if ($candidatsInfo->count() < 2) {
+                return null;
+            }
+
+            $candidats = $candidatsInfo;
+        }
+
+        $count = $candidats->count();
+
+        for ($i = 0; $i < $count; $i++) {
+            for ($j = $i + 1; $j < $count; $j++) {
+
                 $jury1 = $candidats[$i];
                 $jury2 = $candidats[$j];
 
@@ -342,21 +399,39 @@ class PlanningService
                     continue;
                 }
 
-                if (!$this->aMinimumDeuxInfo($encadrant, $jury1, $jury2)) {
-                    continue;
+                $jury1Info = $this->profIsInfo($jury1, $profMeta);
+                $jury2Info = $this->profIsInfo($jury2, $profMeta);
+
+                /*
+                |--------------------------------------------------------------------------
+                | Contrainte dure : minimum 2 professeurs informatique
+                |--------------------------------------------------------------------------
+                */
+
+                if ($encadrantInfo) {
+                    if (!$jury1Info && !$jury2Info) {
+                        continue;
+                    }
+                } else {
+                    if (!$jury1Info || !$jury2Info) {
+                        continue;
+                    }
                 }
 
-                $anglaisPresent = $this->anglaisPresent($encadrant, $jury1, $jury2);
-
-                if ($exigerAnglais && !$anglaisPresent) {
-                    continue;
-                }
+                $anglaisPresent = $this->anglaisPresentMeta(
+                    $encadrant,
+                    $jury1,
+                    $jury2,
+                    $profMeta
+                );
 
                 $score = $this->scoreAffectation(
                     $pfe,
                     $encadrant,
                     $jury1,
                     $jury2,
+                    $pfeMeta,
+                    $profMeta,
                     $slot['date'],
                     $slot['heure'],
                     $repartitionProfs,
@@ -366,9 +441,57 @@ class PlanningService
 
                 $warning = null;
 
-                if ($this->isEnglish($pfe->langue) && !$anglaisPresent) {
+                /*
+                |--------------------------------------------------------------------------
+                | PFE anglais sans professeur anglais
+                |--------------------------------------------------------------------------
+                | On ne rejette plus directement la paire.
+                | On la garde comme solution de secours avec une pénalité.
+                |--------------------------------------------------------------------------
+                */
+
+                if ($pfeAnglais && !$anglaisPresent) {
                     $warning = $this->warningAnglaisRelache($pfe);
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Première pénalité :
+                    | utiliser un PFE anglais sans prof anglais est moins bon.
+                    |--------------------------------------------------------------------------
+                    */
+
                     $score += 120;
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Deuxième pénalité :
+                    | si l'anglais était demandé, cette solution devient fallback.
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if ($exigerAnglais) {
+                        $score += 300;
+                    }
+
+                    if (!$bestSansAnglais || $score < $bestSansAnglais['score']) {
+                        $bestSansAnglais = [
+                            'jury1' => $jury1,
+                            'jury2' => $jury2,
+                            'score' => $score,
+                            'warning' => $warning,
+                        ];
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Si anglais obligatoire, on préfère continuer à chercher
+                    | une solution avec professeur anglais.
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if ($exigerAnglais) {
+                        continue;
+                    }
                 }
 
                 if (!$best || $score < $best['score']) {
@@ -382,10 +505,19 @@ class PlanningService
             }
         }
 
-        return $best;
+        /*
+        |--------------------------------------------------------------------------
+        | Priorité finale
+        |--------------------------------------------------------------------------
+        | 1. Solution normale / avec anglais si nécessaire
+        | 2. Solution fallback sans anglais
+        |--------------------------------------------------------------------------
+        */
+
+        return $best ?? $bestSansAnglais;
     }
     private function affectationRespecteContraintesDures(
-        array $planning,
+        array $occupation,
         array $slot,
         $pfe,
         $jury1,
@@ -396,10 +528,9 @@ class PlanningService
             return false;
         }
 
-        if ($this->salleOccupee($planning, $slot['date'], $slot['heure'], $slot['salle'], $duree)) {
+        if ($this->salleOccupeeRapide($occupation, $slot['date'], $slot['minute'], $slot['salle'], $duree)) {
             return false;
         }
-
         $encadrant = $pfe->encadrant;
 
         if (!$encadrant || !$jury1 || !$jury2) {
@@ -417,7 +548,7 @@ class PlanningService
         }
 
         foreach ($ids as $idProf) {
-            if (!$this->profDisponiblePourCreneau($planning, $idProf, $slot['date'], $slot['heure'], $duree)) {
+            if (!$this->profDisponiblePourCreneauRapide($occupation, $idProf, $slot['date'], $slot['minute'], $duree)) {
                 return false;
             }
         }
@@ -425,22 +556,17 @@ class PlanningService
         return $this->aMinimumDeuxInfo($encadrant, $jury1, $jury2);
     }
 
-    private function salleOccupee(array $planning, string $date, string $heure, string $salle, int $duree): bool
-    {
-        $nouvelleMinute = $this->minutesDepuisMinuit($heure);
+    private function salleOccupeeRapide(
+        array $occupation,
+        string $date,
+        int $nouvelleMinute,
+        string $salle,
+        int $duree
+    ): bool {
+        $minutesOccupees = $occupation['salles'][$date][$salle] ?? [];
 
-        foreach ($planning as $item) {
-            if ($item['date'] !== $date || $item['salle'] !== $salle) {
-                continue;
-            }
-
-            if ($item['heure'] === $heure) {
-                return true;
-            }
-
-            $ancienneMinute = $this->minutesDepuisMinuit($item['heure']);
-
-            if ($nouvelleMinute !== null && $ancienneMinute !== null && abs($nouvelleMinute - $ancienneMinute) < $duree) {
+        foreach ($minutesOccupees as $ancienneMinute) {
+            if (abs($nouvelleMinute - $ancienneMinute) < $duree) {
                 return true;
             }
         }
@@ -448,67 +574,77 @@ class PlanningService
         return false;
     }
 
-    private function profDisponiblePourCreneau(array $planning, int $idProf, string $date, string $heure, int $duree): bool
-    {
-        return !$this->profOccupe($planning, $idProf, $date, $heure)
-            && !$this->profConsecutif($planning, $idProf, $date, $heure, $duree);
-    }
+    private function profDisponiblePourCreneauRapide(
+        array $occupation,
+        int $idProf,
+        string $date,
+        int $nouvelleMinute,
+        int $duree
+    ): bool {
+        $minutesOccupees = $occupation['profs'][$date][$idProf] ?? [];
 
-    private function profOccupe(array $planning, int $idProf, string $date, string $heure): bool
-    {
-        foreach ($planning as $soutenance) {
-            if ($soutenance['date'] !== $date || $soutenance['heure'] !== $heure) {
-                continue;
-            }
-
-            if (
-                (int) $soutenance['id_encadrant'] === $idProf ||
-                (int) $soutenance['id_jury1'] === $idProf ||
-                (int) $soutenance['id_jury2'] === $idProf
-            ) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function profConsecutif(array $planning, int $idProf, string $date, string $heure, int $duree): bool
-    {
-        $nouvelleMinute = $this->minutesDepuisMinuit($heure);
-
-        if ($nouvelleMinute === null) {
-            return false;
-        }
-
-        foreach ($planning as $soutenance) {
-            if ($soutenance['date'] !== $date) {
-                continue;
-            }
-
-            $profPresent =
-                (int) $soutenance['id_encadrant'] === $idProf ||
-                (int) $soutenance['id_jury1'] === $idProf ||
-                (int) $soutenance['id_jury2'] === $idProf;
-
-            if (!$profPresent) {
-                continue;
-            }
-
-            $ancienneMinute = $this->minutesDepuisMinuit($soutenance['heure']);
-
-            if ($ancienneMinute === null) {
-                continue;
-            }
-
+        foreach ($minutesOccupees as $ancienneMinute) {
             $difference = abs($nouvelleMinute - $ancienneMinute);
 
+            if ($difference === 0) {
+                return false;
+            }
+
             if ($difference > 0 && $difference <= $duree) {
-                return true;
+                return false;
             }
         }
 
-        return false;
+        return true;
+    }
+
+    private function ajouterOccupation(
+        array &$occupation,
+        string $date,
+        int $minute,
+        string $salle,
+        array $professeurs
+    ): void {
+        if (!isset($occupation['salles'][$date])) {
+            $occupation['salles'][$date] = [];
+        }
+
+        if (!isset($occupation['salles'][$date][$salle])) {
+            $occupation['salles'][$date][$salle] = [];
+        }
+
+        $occupation['salles'][$date][$salle][] = $minute;
+
+        foreach ($professeurs as $prof) {
+            $idProf = (int) $prof->id_professeur;
+
+            if (!isset($occupation['profs'][$date])) {
+                $occupation['profs'][$date] = [];
+            }
+
+            if (!isset($occupation['profs'][$date][$idProf])) {
+                $occupation['profs'][$date][$idProf] = [];
+            }
+
+            $occupation['profs'][$date][$idProf][] = $minute;
+        }
+    }
+
+    private function professeursDisponiblesPourSlot(
+        $professeurs,
+        array $occupation,
+        array $slot,
+        int $duree
+    ) {
+        return $professeurs->filter(function ($prof) use ($occupation, $slot, $duree) {
+            return $this->profDisponiblePourCreneauRapide(
+                $occupation,
+                (int) $prof->id_professeur,
+                $slot['date'],
+                $slot['minute'],
+                $duree
+            );
+        })->values();
     }
 
     private function scoreAffectation(
@@ -516,6 +652,8 @@ class PlanningService
         $encadrant,
         $jury1,
         $jury2,
+        array $pfeMeta,
+        array $profMeta,
         string $date,
         string $heure,
         array $repartitionProfs,
@@ -524,7 +662,11 @@ class PlanningService
     ): float {
         $score = 0.0;
 
-        $filiere = $this->filierePfe($pfe);
+        $filiere = $pfeMeta[(int) $pfe->id_pfe]['filiere']
+            ?? $this->filierePfe($pfe);
+
+        $pfeAnglais = $pfeMeta[(int) $pfe->id_pfe]['is_english']
+            ?? $this->isEnglish($pfe->langue);
         $filiereCount = $repartitionFilieres[$date][$filiere] ?? 0;
         $score += ($filiereCount * $filiereCount * 30) + ($filiereCount * 10);
 
@@ -544,11 +686,11 @@ class PlanningService
             }
         }
 
-        if ($this->isEnglish($pfe->langue)) {
-            $score += $this->anglaisPresent($encadrant, $jury1, $jury2) ? -35 : 120;
+        if ($pfeAnglais) {
+            $score += $this->anglaisPresentMeta($encadrant, $jury1, $jury2, $profMeta) ? -35 : 120;
         } else {
             foreach ([$jury1, $jury2] as $prof) {
-                if ($this->isEnglish($prof->specialite)) {
+                if ($this->profIsEnglish($prof, $profMeta)) {
                     $score += 8;
                 }
             }
@@ -573,26 +715,28 @@ class PlanningService
         return $score;
     }
 
-    private function anglaisObligatoire($pfe, $encadrant, $professeurs, array $repartitionProfs, int $maxParticipations): bool
-    {
-        if (!$this->isEnglish($pfe->langue)) {
+    private function anglaisObligatoireRapide(
+        bool $pfeAnglais,
+        $encadrant,
+        array $idsProfsAnglais,
+        array $profMeta,
+        array $repartitionProfs,
+        int $maxParticipations
+    ): bool {
+        if (!$pfeAnglais) {
             return false;
         }
 
-        if ($encadrant && $this->isEnglish($encadrant->specialite)) {
+        if ($encadrant && $this->profIsEnglish($encadrant, $profMeta)) {
             return false;
         }
 
-        $profsAnglais = $professeurs->filter(function ($prof) {
-            return $this->isEnglish($prof->specialite);
-        });
-
-        if ($profsAnglais->isEmpty()) {
+        if (empty($idsProfsAnglais)) {
             return false;
         }
 
-        foreach ($profsAnglais as $prof) {
-            $total = $repartitionProfs[(int) $prof->id_professeur]['total'] ?? 0;
+        foreach ($idsProfsAnglais as $idProf) {
+            $total = $repartitionProfs[$idProf]['total'] ?? 0;
 
             if ($total < $maxParticipations) {
                 return true;
@@ -645,12 +789,10 @@ class PlanningService
 
         if (
             $this->isEnglish($pfe->langue) &&
-            !$this->isEnglish($encadrant->specialite) &&
-            $this->anglaisObligatoire($pfe, $encadrant, $professeurs, $repartitionProfs, $maxParticipations)
+            !$this->isEnglish($encadrant->specialite)
         ) {
-            return "PFE {$pfe->id_pfe} non planifié : aucun créneau trouvé. "
-                . "Le problème peut venir d'un conflit horaire, d'une soutenance consécutive, "
-                . "ou de la contrainte obligatoire des 2 professeurs informatique.";
+            return "PFE {$pfe->id_pfe} non planifié : PFE en anglais sans encadrant anglais. "
+                . "Aucun créneau valide n'a été trouvé avec les contraintes actuelles.";
         }
 
         return "PFE {$pfe->id_pfe} non planifié : aucun créneau trouvé sans conflit de salle, conflit professeur ou soutenance consécutive. Augmentez les jours, les salles ou les créneaux.";
@@ -768,6 +910,101 @@ class PlanningService
         $repartitionFilieres[$date][$filiere]++;
     }
 
+    private function initialiserPfeMeta($pfes): array
+    {
+        $meta = [];
+
+        foreach ($pfes as $pfe) {
+            $meta[(int) $pfe->id_pfe] = [
+                'filiere' => $this->filierePfe($pfe),
+                'is_english' => $this->isEnglish($pfe->langue),
+                'difficulty' => $this->scoreDifficultePfe($pfe),
+            ];
+        }
+
+        return $meta;
+    }
+
+    private function initialiserProfMeta($professeurs): array
+    {
+        $meta = [];
+
+        foreach ($professeurs as $prof) {
+            $id = (int) $prof->id_professeur;
+
+            $meta[$id] = [
+                'is_info' => $this->isInfo($prof->specialite),
+                'is_english' => $this->isEnglish($prof->specialite),
+                'nom' => $this->nomComplet($prof),
+                'specialite' => $prof->specialite ?? '-',
+            ];
+        }
+
+        return $meta;
+    }
+
+    private function selectionnerPfesATesterPourSlot(
+        $pfesRestants,
+        array $pfeMeta,
+        array $repartitionFilieres,
+        string $date
+    ) {
+        return $pfesRestants
+            ->sortBy(function ($pfe) use ($pfeMeta, $repartitionFilieres, $date) {
+
+                $idPfe = (int) $pfe->id_pfe;
+
+                $filiere = $pfeMeta[$idPfe]['filiere']
+                    ?? $this->filierePfe($pfe);
+
+                $difficulty = $pfeMeta[$idPfe]['difficulty']
+                    ?? $this->scoreDifficultePfe($pfe);
+
+                $filiereCountToday = $repartitionFilieres[$date][$filiere] ?? 0;
+
+                /*
+                |--------------------------------------------------------------------------
+                | Score de priorité PFE
+                |--------------------------------------------------------------------------
+                | Plus le score est petit, plus le PFE est testé tôt.
+                |
+                | - difficulté élevée => priorité élevée
+                | - filière déjà beaucoup utilisée ce jour => priorité plus faible
+                |--------------------------------------------------------------------------
+                */
+
+                return ($filiereCountToday * 50) - $difficulty;
+            })
+            ->take(self::MAX_PFES_TESTES_PAR_SLOT);
+    }
+
+    private function profIsInfo($prof, array $profMeta): bool
+    {
+        $id = (int) $prof->id_professeur;
+
+        return $profMeta[$id]['is_info']
+            ?? $this->isInfo($prof->specialite);
+    }
+
+    private function profIsEnglish($prof, array $profMeta): bool
+    {
+        $id = (int) $prof->id_professeur;
+
+        return $profMeta[$id]['is_english']
+            ?? $this->isEnglish($prof->specialite);
+    }
+
+    private function anglaisPresentMeta($encadrant, $jury1, $jury2, array $profMeta): bool
+    {
+        foreach ([$encadrant, $jury1, $jury2] as $prof) {
+            if ($prof && $this->profIsEnglish($prof, $profMeta)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function initialiserRepartitionProfs($professeurs): array
     {
         $stats = [];
@@ -798,6 +1035,7 @@ class PlanningService
                         $slots[] = [
                             'date' => $date->toDateString(),
                             'heure' => $heure,
+                            'minute' => $this->minutesDepuisMinuit($heure),
                             'salle' => $salle,
                         ];
                     }
@@ -896,17 +1134,6 @@ class PlanningService
         }
 
         return $count >= 2;
-    }
-
-    private function anglaisPresent($encadrant, $jury1, $jury2): bool
-    {
-        foreach ([$encadrant, $jury1, $jury2] as $prof) {
-            if ($prof && $this->isEnglish($prof->specialite)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function isEnglish(?string $text): bool
