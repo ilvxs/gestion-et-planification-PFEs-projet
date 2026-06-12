@@ -9,4 +9,6 @@ return [
         
         return $annee . '-' . ($annee + 1);
     })(),
+
+    'max_extra_days' => 10,
 ];

@@ -11,8 +11,7 @@ class VerificationController extends Controller
         $affectation = $verificationService->verifierAffectation();
         $planning = $verificationService->verifierPlanning();
 
-        //Les alertes ne bloquent pas l’exportation.
-        //Seules les erreurs bloquent.
+        //Les alertes ne bloquent pas l’exportation, seules les erreurs bloquent
          
         $isValid = empty($affectation['errors']) && empty($planning['errors']);
 

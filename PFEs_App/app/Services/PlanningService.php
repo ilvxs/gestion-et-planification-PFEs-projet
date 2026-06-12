@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 
 class PlanningService
 {
-    private const DEFAULT_MAX_EXTRA_DAYS = 180;
+    private const DEFAULT_MAX_EXTRA_DAYS = 15;
 
     /*nombre maximum de PFEs testes pour chaque slot*/
     private const MAX_PFES_TESTES_PAR_SLOT = 15;
@@ -117,9 +117,6 @@ class PlanningService
                 'created' => 0,
                 'errors' => $errors,
                 'warnings' => $warnings,
-                'planning' => [],
-                'repartition_profs' => $repartitionProfs,
-                'repartition_filieres' => $repartitionFilieres,
             ];
         }
 
@@ -229,11 +226,7 @@ class PlanningService
                 [$encadrant, $jury1, $jury2]
             );
             $this->mettreAJourRepartitionProfs($repartitionProfs, [$encadrant, $jury1, $jury2], $slot['date'], $slot['heure']);
-            $this->mettreAJourRepartitionFilieres(
-                $repartitionFilieres,
-                $slot['date'],
-                $pfeMeta[(int) $pfe->id_pfe]['filiere'] ?? $this->filierePfe($pfe)
-            );
+            $this->mettreAJourRepartitionFilieres($repartitionFilieres,  $slot['date'], $pfeMeta[(int) $pfe->id_pfe]['filiere'] ?? $this->filierePfe($pfe));
             $pfesRestants->forget((int) $pfe->id_pfe);
         }
 
@@ -241,10 +234,6 @@ class PlanningService
             $errors[] = $this->diagnostiquerEchecPfe(
                 $pfe,
                 $professeurs,
-                $planning,
-                $repartitionProfs,
-                $maxParticipations,
-                $duree
             );
         }
 
@@ -263,10 +252,7 @@ class PlanningService
             'created' => $created,
             'errors' => $errors,
             'warnings' => $warnings,
-            'planning' => empty($errors) ? $planning : [],
-            'repartition_profs' => $this->ordonnerRepartition($repartitionProfs),
-            'repartition_filieres' => $this->ordonnerRepartition($repartitionFilieres),
-        ];
+            ];
     }
 
     private function meilleureAffectationPourPfe(
@@ -317,17 +303,6 @@ class PlanningService
             return null;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Recherche de la meilleure paire de jurys
-        |--------------------------------------------------------------------------
-        | La fonction gère maintenant en un seul passage :
-        | - le cas normal
-        | - le cas PFE anglais avec professeur anglais
-        | - le cas PFE anglais sans professeur anglais avec warning
-        |--------------------------------------------------------------------------
-        */
-
         return $this->chercherMeilleurePaireJurys(
             $pfe,
             $encadrant,
@@ -366,13 +341,7 @@ class PlanningService
             return $this->profIsInfo($prof, $profMeta);
         })->values();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Optimisation de la contrainte "minimum 2 profs info"
-        |--------------------------------------------------------------------------
-        | Si l'encadrant n'est pas info, les deux jurys doivent être info.
-        |--------------------------------------------------------------------------
-        */
+        /* si l'encadrant n'est pas info les deux jurys doivent etre info */
 
         if (!$encadrantInfo) {
             if ($candidatsInfo->count() < 2) {
@@ -396,12 +365,6 @@ class PlanningService
 
                 $jury1Info = $this->profIsInfo($jury1, $profMeta);
                 $jury2Info = $this->profIsInfo($jury2, $profMeta);
-
-                /*
-                |--------------------------------------------------------------------------
-                | Contrainte dure : minimum 2 professeurs informatique
-                |--------------------------------------------------------------------------
-                */
 
                 if ($encadrantInfo) {
                     if (!$jury1Info && !$jury2Info) {
@@ -436,33 +399,15 @@ class PlanningService
 
                 $warning = null;
 
-                /*
-                |--------------------------------------------------------------------------
-                | PFE anglais sans professeur anglais
-                |--------------------------------------------------------------------------
-                | On ne rejette plus directement la paire.
-                | On la garde comme solution de secours avec une pénalité.
-                |--------------------------------------------------------------------------
-                */
+                /*PFE anglais sans professeur anglais: on ne rejette plus directement la paire, on la garde comme solution de secours avec une penalite */
 
                 if ($pfeAnglais && !$anglaisPresent) {
                     $warning = $this->warningAnglaisRelache($pfe);
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | Première pénalité :
-                    | utiliser un PFE anglais sans prof anglais est moins bon.
-                    |--------------------------------------------------------------------------
-                    */
-
+                    /* utiliser un PFE anglais sans prof anglais est moins bon*/
                     $score += 120;
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | Deuxième pénalité :
-                    | si l'anglais était demandé, cette solution devient fallback.
-                    |--------------------------------------------------------------------------
-                    */
+                    /*si l'anglais etait demande, cette solution devient fallback*/
 
                     if ($exigerAnglais) {
                         $score += 300;
@@ -477,12 +422,7 @@ class PlanningService
                         ];
                     }
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | Si anglais obligatoire, on préfère continuer à chercher
-                    | une solution avec professeur anglais.
-                    |--------------------------------------------------------------------------
-                    */
+                    /* si anglais obligatoire, on préfère continuer a chercher une solution avec professeur anglais */
 
                     if ($exigerAnglais) {
                         continue;
@@ -499,15 +439,6 @@ class PlanningService
                 }
             }
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Priorité finale
-        |--------------------------------------------------------------------------
-        | 1. Solution normale / avec anglais si nécessaire
-        | 2. Solution fallback sans anglais
-        |--------------------------------------------------------------------------
-        */
 
         return $best ?? $bestSansAnglais;
     }
@@ -752,10 +683,6 @@ class PlanningService
     private function diagnostiquerEchecPfe(
         $pfe,
         $professeurs,
-        array $planning,
-        array $repartitionProfs,
-        int $maxParticipations,
-        int $duree
     ): string {
         $encadrant = $pfe->encadrant;
 
@@ -825,21 +752,9 @@ class PlanningService
         }
 
         DB::transaction(function () use ($rows) {
-
-            /*
-            |--------------------------------------------------------------------------
-            | Supprimer l'ancien planning
-            |--------------------------------------------------------------------------
-            */
-
+            /* supprimer l'ancien planning */
             Soutenance::query()->delete();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Réinsérer le nouveau planning
-            |--------------------------------------------------------------------------
-            */
-
+            /* reinserer le nouveau planning*/
             if (!empty($rows)) {
                 Soutenance::insert($rows);
             }
@@ -1168,24 +1083,4 @@ class PlanningService
         return trim(($prof->nom ?? '') . ' ' . ($prof->prenom ?? '')) ?: '-';
     }
 
-    private function ordonnerRepartition(array $data): array
-    {
-        ksort($data);
-
-        foreach ($data as &$value) {
-            if (is_array($value)) {
-                ksort($value);
-
-                if (isset($value['par_jour']) && is_array($value['par_jour'])) {
-                    ksort($value['par_jour']);
-                }
-
-                if (isset($value['par_heure']) && is_array($value['par_heure'])) {
-                    ksort($value['par_heure']);
-                }
-            }
-        }
-
-        return $data;
-    }
 }

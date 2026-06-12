@@ -53,7 +53,7 @@
             <form action="{{ route('affectations.generate') }}" method="POST">
                 @csrf
                 <button type="submit" class="btn btn-main">
-                    Lancerr l’affectation des encadrants
+                    Lancer l'affectation des encadrants
                 </button>
             </form>
         </section>
