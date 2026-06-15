@@ -3,103 +3,52 @@
 namespace App\Services;
 
 use App\Models\Etudiant;
-use App\Models\Professeur;
 use App\Models\Pfe;
+use App\Models\Professeur;
 use App\Models\Soutenance;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\IOFactory;
-use Illuminate\Http\UploadedFile; // Indispensable pour la synchro avec le contrôleur
 
 class ImportExcelService
 {
-    
-    //Lit le fichier à partir de l'objet UploadedFile envoyé par le contrôleur
-    
     private function readExcel(UploadedFile $file): array
     {
-        // On récupère le chemin temporaire du fichier envoyé par la requête
         $spreadsheet = IOFactory::load($file->getRealPath());
+
         return $spreadsheet->getActiveSheet()->toArray();
     }
 
-    
-     //Validation des données d'une ligne 
-     
     public function validateRow(array $data, array $rules)
     {
         return Validator::make($data, $rules);
     }
 
-    
-    //Importation etud et création automatique des PFEs
-    
+    public function analyserEtudiants(UploadedFile $file): array
+    {
+        $preparation = $this->preparerEtudiants($file);
+
+        return [
+            'pfes_count' => count($preparation['data']),
+            'errors' => $preparation['errors'],
+        ];
+    }
+
     public function importEtudiants(UploadedFile $file): array
     {
-        $rows = $this->readExcel($file);
-        $errors = [];
-        $dataToImport = []; // Stockage temporaire des lignes valides
-        $seenCNEs = [];
+        $preparation = $this->preparerEtudiants($file);
+        $errors = $preparation['errors'];
+        $dataToImport = $preparation['data'];
 
-        //1- validation de tout le fichier
-        foreach ($rows as $index => $row) {
-            if ($index === 0) continue; 
-            if (empty(array_filter($row))) continue;
-
-            $lineNum = $index + 1;
-            $data = [
-                'cne'     => trim($row[0] ?? ''),
-                'nom'     => trim($row[1] ?? ''),
-                'prenom'  => trim($row[2] ?? ''),
-                'email'   => trim($row[4] ?? ''),
-                'filiere' => trim($row[5] ?? ''),
-                'sujet'   => trim($row[6] ?? ''),
-                'langue'  => trim($row[7] ?? ''),
-            ];
-
-            // Validation des champs requis
-            $validator = $this->validateRow($data, [
-                'cne'     => 'required|string',
-                'nom'     => 'required|string',
-                'prenom'  => 'required|string',
-                'email'   => 'required|email',
-                'filiere' => 'required|string',
-                'sujet'   => 'required|string',
-                'langue'  => 'required|string',
-            ]);
-
-            if ($validator->fails()) {
-                $missingFields = implode(', ', $validator->errors()->keys());
-                $errors[] = "Ligne $lineNum : Données manquantes ou invalides ($missingFields)";
-                continue;
-            }
-
-            // Vérification des doublons CNE dans le fichier
-            if (!empty($data['cne'])) {
-                if (in_array($data['cne'], $seenCNEs)) {
-                    $errors[] = "Ligne $lineNum : Le CNE " . $data['cne'] . " est dupliqué dans le fichier.";
-                    continue;
-                } else {
-                    $seenCNEs[] = $data['cne'];
-                }
-            }
-
-            // Si aucune erreur pour l'instant, on prépare l'insertion
-            $dataToImport[] = $data;
-        }
-
-        //2- insertion ou refus
-        
-        // S'il y a la moindre erreur, on arrête tout ici
         if (count($errors) > 0) {
             return [
                 'students_imported' => 0,
                 'pfes_imported' => 0,
-                'errors' => $errors, // On retourne toutes les erreurs sans rien enregistrer
+                'errors' => $errors,
             ];
         }
 
-        // Si aucune erreur, on procède à l'enregistrement massif
         try {
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
 
@@ -110,14 +59,12 @@ class ImportExcelService
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
             return DB::transaction(function () use ($dataToImport) {
-
                 foreach ($dataToImport as $item) {
-
                     $etudiant = Etudiant::create([
-                        'nom'     => $item['nom'],
-                        'prenom'  => $item['prenom'],
-                        'cne'     => $item['cne'],
-                        'email'   => $item['email'],
+                        'nom' => $item['nom'],
+                        'prenom' => $item['prenom'],
+                        'cne' => $item['cne'],
+                        'email' => $item['email'],
                         'filiere' => $item['filiere'],
                     ]);
 
@@ -134,27 +81,21 @@ class ImportExcelService
             return [
                 'students_imported' => 0,
                 'pfes_imported' => 0,
-                'errors' => [ $e->getMessage()],
+                'errors' => [$e->getMessage()],
             ];
         }
     }
-        
-        //Importation des Professeurs
-        
+
     public function importProfesseurs(UploadedFile $file): array
     {
         $rows = $this->readExcel($file);
 
-        $importedCount = 0;
         $errors = [];
         $dataToImport = [];
         $seenProfessors = [];
 
-        //1- Validation complete 
         foreach ($rows as $index => $row) {
-
             if ($index === 0 || $index === 1) continue;
-
             if (empty(array_filter($row))) continue;
 
             $lineNum = $index + 1;
@@ -162,57 +103,43 @@ class ImportExcelService
             $nom = trim($row[0] ?? '');
             $prenom = trim($row[1] ?? '');
             $specialite = trim($row[2] ?? '');
-
             $profKey = strtoupper($nom . '|' . $prenom);
 
             $data = [
-                'nom'        => $nom,
-                'prenom'     => $prenom,
+                'nom' => $nom,
+                'prenom' => $prenom,
                 'specialite' => $specialite,
             ];
 
-            // Validation
             $validator = $this->validateRow($data, [
-                'nom'        => 'required|string',
-                'prenom'     => 'required|string',
+                'nom' => 'required|string',
+                'prenom' => 'required|string',
                 'specialite' => 'required|string',
             ]);
 
             if ($validator->fails()) {
-
                 $missingFields = implode(', ', $validator->errors()->keys());
-
-                $errors[] = "Ligne $lineNum : Données manquantes ou invalides ($missingFields)";
-
+                $errors[] = "Ligne $lineNum : Donnees manquantes ou invalides ($missingFields)";
                 continue;
             }
 
-            // Vérification doublons dans le fichier
             if (in_array($profKey, $seenProfessors)) {
-
-                $errors[] = "Ligne $lineNum : Le professeur $nom $prenom apparaît deux fois dans le fichier.";
-
+                $errors[] = "Ligne $lineNum : Le professeur $nom $prenom apparait deux fois dans le fichier.";
                 continue;
             }
 
             $seenProfessors[] = $profKey;
-
-            // Stockage temporaire
             $dataToImport[] = $data;
         }
 
-        //2-refus si erreur
         if (count($errors) > 0) {
-
             return [
                 'imported' => 0,
                 'errors' => $errors,
             ];
         }
 
-        //3- supp et insertion
         try {
-
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
 
             Soutenance::truncate();
@@ -221,13 +148,10 @@ class ImportExcelService
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
             return DB::transaction(function () use ($dataToImport) {
-
                 $importedCount = 0;
 
                 foreach ($dataToImport as $data) {
-
                     Professeur::create($data);
-
                     $importedCount++;
                 }
 
@@ -236,9 +160,7 @@ class ImportExcelService
                     'errors' => [],
                 ];
             });
-
         } catch (\Exception $e) {
-
             return [
                 'imported' => 0,
                 'errors' => [$e->getMessage()],
@@ -246,14 +168,69 @@ class ImportExcelService
         }
     }
 
-    //Création d'un PFE pour un étudiant
-     
+    private function preparerEtudiants(UploadedFile $file): array
+    {
+        $rows = $this->readExcel($file);
+        $errors = [];
+        $dataToImport = [];
+        $seenCNEs = [];
+
+        foreach ($rows as $index => $row) {
+            if ($index === 0) continue;
+            if (empty(array_filter($row))) continue;
+
+            $lineNum = $index + 1;
+
+            $data = [
+                'cne' => trim($row[0] ?? ''),
+                'nom' => trim($row[1] ?? ''),
+                'prenom' => trim($row[2] ?? ''),
+                'email' => trim($row[4] ?? ''),
+                'filiere' => trim($row[5] ?? ''),
+                'sujet' => trim($row[6] ?? ''),
+                'langue' => trim($row[7] ?? ''),
+            ];
+
+            $validator = $this->validateRow($data, [
+                'cne' => 'required|string',
+                'nom' => 'required|string',
+                'prenom' => 'required|string',
+                'email' => 'required|email',
+                'filiere' => 'required|string',
+                'sujet' => 'required|string',
+                'langue' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                $missingFields = implode(', ', $validator->errors()->keys());
+                $errors[] = "Ligne $lineNum : Donnees manquantes ou invalides ($missingFields)";
+                continue;
+            }
+
+            if (!empty($data['cne'])) {
+                if (in_array($data['cne'], $seenCNEs)) {
+                    $errors[] = "Ligne $lineNum : Le CNE " . $data['cne'] . " est duplique dans le fichier.";
+                    continue;
+                }
+
+                $seenCNEs[] = $data['cne'];
+            }
+
+            $dataToImport[] = $data;
+        }
+
+        return [
+            'data' => $dataToImport,
+            'errors' => $errors,
+        ];
+    }
+
     private function importPfes(array $data, Etudiant $etudiant): void
     {
         Pfe::create([
-            'sujet'        => $data['sujet'],
-            'langue'       => $data['langue'],
-            'id_etudiant'  => $etudiant->id_etudiant,
+            'sujet' => $data['sujet'],
+            'langue' => $data['langue'],
+            'id_etudiant' => $etudiant->id_etudiant,
             'id_encadrant' => null,
         ]);
     }

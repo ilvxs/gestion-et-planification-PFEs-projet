@@ -41,6 +41,12 @@ class ImportExcelRequest extends FormRequest
                 'after:today'
             ],
 
+            'date_fin_soutenance' => [
+                'required',
+                'date',
+                'after_or_equal:date_soutenance'
+            ],
+
             'salles' => [
                 'required',
                 'array'
@@ -163,6 +169,15 @@ class ImportExcelRequest extends FormRequest
 
             'date_soutenance.after'
                 => 'La date de soutenance doit être après aujourd\'hui.',   
+
+            'date_fin_soutenance.required'
+                => 'La date de fin des soutenances est obligatoire.',
+
+            'date_fin_soutenance.date'
+                => 'Veuillez choisir une date de fin valide.',
+
+            'date_fin_soutenance.after_or_equal'
+                => 'La date de fin des soutenances doit etre apres ou egale a la date de debut.',
 
             'salles.required'
                 => 'Veuillez sélectionner au moins une salle.',

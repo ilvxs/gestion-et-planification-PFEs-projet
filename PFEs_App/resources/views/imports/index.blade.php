@@ -36,6 +36,11 @@
             <input type="date" name="date_soutenance" class="form-control" value="{{ old('date_soutenance') }}">
         </div>
 
+        <div class="col-md-4">
+            <label class="form-label fw-semibold">Date de fin des soutenances</label>
+            <input type="date" name="date_fin_soutenance" class="form-control" value="{{ old('date_fin_soutenance') }}">
+        </div>
+
         <div class="col-12">
             <label class="form-label fw-semibold">Horaires</label>
 

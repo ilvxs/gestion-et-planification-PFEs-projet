@@ -15,7 +15,7 @@ class PlanningService
     /*nombre maximum de PFEs testes pour chaque slot*/
     private const MAX_PFES_TESTES_PAR_SLOT = 15;
 
-    public function generer($dateDebut, $salles, $creneaux): array
+    public function generer($dateDebut, $salles, $creneaux, $dateFin = null): array
     {
         set_time_limit(300);
 
@@ -48,6 +48,20 @@ class PlanningService
         } catch (\Throwable $e) {
             $dateDepart = Carbon::now()->startOfDay();
             $errors[] = 'Date de début invalide.';
+        }
+
+        $dateLimite = null;
+
+        if ($dateFin !== null) {
+            try {
+                $dateLimite = Carbon::parse($dateFin)->startOfDay();
+
+                if ($dateLimite->lt($dateDepart)) {
+                    $errors[] = 'Date de fin invalide : elle doit etre apres ou egale a la date de debut.';
+                }
+            } catch (\Throwable $e) {
+                $errors[] = 'Date de fin invalide.';
+            }
         }
 
         $pfes = Pfe::with(['etudiant', 'encadrant'])->get()->values();
@@ -124,7 +138,7 @@ class PlanningService
             ? (int) ceil(($pfes->count() * 3) / $professeurs->count())
             : 0;
 
-        $slots = $this->genererSlots($dateDepart, $salles, $creneaux, $maxExtraDays);
+        $slots = $this->genererSlots($dateDepart, $salles, $creneaux, $maxExtraDays, $dateLimite);
         $pfesRestants = $pfes->keyBy('id_pfe');
 
         foreach ($slots as $slot) {
@@ -926,12 +940,13 @@ class PlanningService
         return $stats;
     }
 
-    private function genererSlots(Carbon $dateDepart, array $salles, array $creneaux, int $maxExtraDays): array
+    private function genererSlots(Carbon $dateDepart, array $salles, array $creneaux, int $maxExtraDays, ?Carbon $dateLimite = null): array
     {
         $slots = [];
         $date = $dateDepart->copy();
+        $dateFin = $dateLimite ? $dateLimite->copy() : $dateDepart->copy()->addDays($maxExtraDays);
 
-        for ($jour = 0; $jour <= $maxExtraDays; $jour++) {
+        while ($date->lte($dateFin)) {
             if ($date->dayOfWeek !== Carbon::SUNDAY) {
                 foreach ($creneaux as $heure) {
                     foreach ($salles as $salle) {

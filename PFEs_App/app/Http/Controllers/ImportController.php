@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ImportExcelRequest;
 use App\Models\Soutenance;
 use App\Services\ImportExcelService;
+use App\Services\PeriodeSoutenanceService;
 
 class ImportController extends Controller
 {
@@ -20,15 +21,33 @@ class ImportController extends Controller
         return view('imports.index');
     }
 
-    public function importAll(ImportExcelRequest $request)
+    public function importAll(ImportExcelRequest $request, PeriodeSoutenanceService $periodeService)
     {
+        $creneaux = $request->creneaux();
+        $analyseEtudiants = $this->importService->analyserEtudiants($request->file('students_file'));
+
+        if (empty($analyseEtudiants['errors'])) {
+            $validationPeriode = $periodeService->valider(
+                $request->date_soutenance,
+                $request->date_fin_soutenance,
+                $request->salles ?? [],
+                $creneaux,
+                (int) $analyseEtudiants['pfes_count']
+            );
+
+            if (!$validationPeriode['valid']) {
+                return back()
+                    ->withErrors(['date_fin_soutenance' => $validationPeriode['message']])
+                    ->withInput($request->except(['students_file', 'professeurs_file']));
+            }
+        }
+
         session()->forget(['planning_generated', 'verification_completed']);
         Soutenance::query()->delete();
 
-        $creneaux = $request->creneaux();
-
         session([
             'date_soutenance' => $request->date_soutenance,
+            'date_fin_soutenance' => $request->date_fin_soutenance,
             'salles' => $request->salles,
             'creneaux' => $creneaux,
         ]);

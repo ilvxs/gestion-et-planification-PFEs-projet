@@ -9,15 +9,16 @@ class PlanningController extends Controller
     public function generate(PlanningService $planningService)
     {
         $dateDebut = session('date_soutenance');
+        $dateFin = session('date_fin_soutenance');
         $salles = session('salles');
         $creneaux = session('creneaux');
 
-        if (!$dateDebut || empty($salles) || empty($creneaux)) {
+        if (!$dateDebut || !$dateFin || empty($salles) || empty($creneaux)) {
             return view('planning.result', [
                 'result' => [
                     'created' => 0,
                     'errors' => [
-                        "La date de soutenance ou les salles ne sont pas disponibles. Veuillez refaire l'importation."
+                        "La periode de soutenance, les salles ou les creneaux ne sont pas disponibles. Veuillez refaire l'importation."
                     ],
                     'warnings' => [],
                     'planning' => [],
@@ -29,7 +30,7 @@ class PlanningController extends Controller
 
         session()->forget('verification_completed');
 
-        $result = $planningService->generer($dateDebut, $salles, $creneaux);
+        $result = $planningService->generer($dateDebut, $salles, $creneaux, $dateFin);
 
         if (empty($result['errors']) && (($result['created'] ?? 0) > 0)) {
             session(['planning_generated' => true]);
