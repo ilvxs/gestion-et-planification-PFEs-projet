@@ -30,14 +30,18 @@
             </small>
         </div>
 
-        <div class="col-md-4">
-            <label class="form-label fw-semibold">Date de debut des soutenances</label>
-            <input type="date" name="date_soutenance" class="form-control" value="{{ old('date_soutenance') }}">
-        </div>
+        <div class="col-12">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Date de debut des soutenances</label>
+                    <input type="date" name="date_soutenance" class="form-control" value="{{ old('date_soutenance') }}">
+                </div>
 
-        <div class="col-md-4">
-            <label class="form-label fw-semibold">Date de fin des soutenances</label>
-            <input type="date" name="date_fin_soutenance" class="form-control" value="{{ old('date_fin_soutenance') }}">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Date de fin des soutenances</label>
+                    <input type="date" name="date_fin_soutenance" class="form-control" value="{{ old('date_fin_soutenance') }}">
+                </div>
+            </div>
         </div>
 
         <div class="col-12">
