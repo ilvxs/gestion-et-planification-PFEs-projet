@@ -105,22 +105,27 @@ class ImportExcelService
             ];
         }
 
-        $professeursSheet = $this->findSheet($spreadsheet, ['professeur', 'professeurs', 'enseignant', 'enseignants'], 0);
-        $etudiantsSheet = $this->findSheet($spreadsheet, ['etudiant', 'etudiants', 'student', 'students'], 1);
-        $sallesSheet = $this->findSheet($spreadsheet, ['salle', 'salles', 'classroom', 'classrooms'], 2);
+        $professeursSheet = $this->findSheet($spreadsheet, ['professeur', 'professeurs', 'enseignant', 'enseignants']);
+        $etudiantsSheet = $this->findSheet($spreadsheet, ['etudiant', 'etudiants', 'student', 'students']);
+        $sallesSheet = $this->findSheet($spreadsheet, ['salle', 'salles', 'classroom', 'classrooms']);
 
         $missingErrors = [];
 
+        if (!$professeursSheet || !$etudiantsSheet || !$sallesSheet) {
+            $missingErrors[] = 'Le fichier Excel doit contenir trois feuilles nommees : professeurs, etudiants, salles.';
+            $missingErrors[] = 'Noms de feuilles trouves : ' . implode(', ', $this->sheetNames($spreadsheet)) . '.';
+        }
+
         if (!$professeursSheet) {
-            $missingErrors[] = 'La feuille professeur est introuvable.';
+            $missingErrors[] = 'La feuille professeurs est introuvable.';
         }
 
         if (!$etudiantsSheet) {
-            $missingErrors[] = 'La feuille etudiant est introuvable.';
+            $missingErrors[] = 'La feuille etudiants est introuvable.';
         }
 
         if (!$sallesSheet) {
-            $missingErrors[] = 'La feuille salle est introuvable.';
+            $missingErrors[] = 'La feuille salles est introuvable.';
         }
 
         if (!empty($missingErrors)) {
@@ -317,7 +322,7 @@ class ImportExcelService
         ];
     }
 
-    private function findSheet(Spreadsheet $spreadsheet, array $aliases, int $fallbackIndex): ?Worksheet
+    private function findSheet(Spreadsheet $spreadsheet, array $aliases): ?Worksheet
     {
         $normalizedAliases = array_map(fn ($alias) => $this->normalizeLabel($alias), $aliases);
 
@@ -329,9 +334,18 @@ class ImportExcelService
             }
         }
 
-        return $spreadsheet->getSheetCount() > $fallbackIndex
-            ? $spreadsheet->getSheet($fallbackIndex)
-            : null;
+        return null;
+    }
+
+    private function sheetNames(Spreadsheet $spreadsheet): array
+    {
+        $names = [];
+
+        foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
+            $names[] = $sheet->getTitle();
+        }
+
+        return $names;
     }
 
     private function shouldSkipRow(array $row, int $index, array $headerKeywords): bool

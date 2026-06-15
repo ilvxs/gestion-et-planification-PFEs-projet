@@ -2,7 +2,7 @@
     <span class="step-badge">Etape 1 / 5</span>
     <h1 class="mb-3">Importation des donnees PFE</h1>
     <p class="text-muted mb-4">
-        Importez un seul fichier Excel contenant les trois feuilles : professeur, etudiant et salle.
+        Importez un seul fichier Excel contenant les trois feuilles : professeurs, etudiants et salles.
     </p>
 
     @if($errors->any())
@@ -23,7 +23,7 @@
             <label class="form-label fw-semibold">Fichier Excel unifie</label>
             <input type="file" name="import_file" class="form-control">
             <small class="text-muted">
-                Feuilles attendues : professeur, etudiant, salle.
+                Feuilles attendues : professeurs, etudiants, salles.
                 Professeur : nom, prenom, specialite.
                 Etudiant : CNE, nom, prenom, email personnel, email academique, filiere, sujet, langue.
                 Salle : nom, disponible optionnel.
