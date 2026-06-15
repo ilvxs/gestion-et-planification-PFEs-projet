@@ -139,7 +139,7 @@
 
                 <td class="date-col">{{ $date }}</td>
                 <td class="heure-col">{{ $heure }}</td>
-                <td class="salle-col">{{ $soutenance->salle }}</td>
+                <td class="salle-col">{{ $soutenance->salle?->nom }}</td>
                 <td class="nom-col">{{ $soutenance->pfe?->etudiant?->nom }}</td>
                 <td class="prenom-col">{{ $soutenance->pfe?->etudiant?->prenom }}</td>
                 <td class="filiere-col">{{ $filiere }}</td>

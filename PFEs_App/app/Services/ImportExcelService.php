@@ -5,61 +5,59 @@ namespace App\Services;
 use App\Models\Etudiant;
 use App\Models\Pfe;
 use App\Models\Professeur;
+use App\Models\Salle;
 use App\Models\Soutenance;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class ImportExcelService
 {
-    private function readExcel(UploadedFile $file): array
+    public function analyserWorkbook(UploadedFile $file): array
     {
-        $spreadsheet = IOFactory::load($file->getRealPath());
-
-        return $spreadsheet->getActiveSheet()->toArray();
-    }
-
-    public function validateRow(array $data, array $rules)
-    {
-        return Validator::make($data, $rules);
-    }
-
-    public function analyserEtudiants(UploadedFile $file): array
-    {
-        $preparation = $this->preparerEtudiants($file);
+        $prepared = $this->prepareWorkbook($file);
 
         return [
-            'pfes_count' => count($preparation['data']),
-            'errors' => $preparation['errors'],
+            'pfes_count' => count($prepared['etudiants']['data']),
+            'professeurs_count' => count($prepared['professeurs']['data']),
+            'salles_count' => count($prepared['salles']['data']),
+            'salles_disponibles' => collect($prepared['salles']['data'])
+                ->filter(fn ($salle) => (bool) $salle['disponible'])
+                ->pluck('nom')
+                ->values()
+                ->all(),
+            'errors' => $prepared['errors'],
         ];
     }
 
-    public function importEtudiants(UploadedFile $file): array
+    public function importWorkbook(UploadedFile $file): array
     {
-        $preparation = $this->preparerEtudiants($file);
-        $errors = $preparation['errors'];
-        $dataToImport = $preparation['data'];
+        $prepared = $this->prepareWorkbook($file);
 
-        if (count($errors) > 0) {
-            return [
-                'students_imported' => 0,
-                'pfes_imported' => 0,
-                'errors' => $errors,
-            ];
+        if (!empty($prepared['errors'])) {
+            return $this->emptyResult($prepared['errors']);
         }
 
         try {
-            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+            return DB::transaction(function () use ($prepared) {
+                Soutenance::query()->delete();
+                Pfe::query()->delete();
+                Etudiant::query()->delete();
+                Professeur::query()->delete();
+                Salle::query()->delete();
 
-            Soutenance::truncate();
-            Pfe::truncate();
-            Etudiant::truncate();
+                foreach ($prepared['salles']['data'] as $data) {
+                    Salle::create($data);
+                }
 
-            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+                foreach ($prepared['professeurs']['data'] as $data) {
+                    Professeur::create($data);
+                }
 
-            return DB::transaction(function () use ($dataToImport) {
-                foreach ($dataToImport as $item) {
+                foreach ($prepared['etudiants']['data'] as $item) {
                     $etudiant = Etudiant::create([
                         'nom' => $item['nom'],
                         'prenom' => $item['prenom'],
@@ -68,127 +66,111 @@ class ImportExcelService
                         'filiere' => $item['filiere'],
                     ]);
 
-                    $this->importPfes($item, $etudiant);
+                    Pfe::create([
+                        'sujet' => $item['sujet'],
+                        'langue' => $item['langue'],
+                        'id_etudiant' => $etudiant->id_etudiant,
+                        'id_encadrant' => null,
+                    ]);
                 }
 
                 return [
-                    'students_imported' => count($dataToImport),
-                    'pfes_imported' => count($dataToImport),
+                    'students_imported' => count($prepared['etudiants']['data']),
+                    'pfes_imported' => count($prepared['etudiants']['data']),
+                    'professeurs_imported' => count($prepared['professeurs']['data']),
+                    'salles_imported' => count($prepared['salles']['data']),
                     'errors' => [],
                 ];
             });
-        } catch (\Exception $e) {
-            return [
-                'students_imported' => 0,
-                'pfes_imported' => 0,
-                'errors' => [$e->getMessage()],
-            ];
+        } catch (\Throwable $e) {
+            return $this->emptyResult([$e->getMessage()]);
         }
     }
 
-    public function importProfesseurs(UploadedFile $file): array
+    public function validateRow(array $data, array $rules)
     {
-        $rows = $this->readExcel($file);
+        return Validator::make($data, $rules);
+    }
 
-        $errors = [];
-        $dataToImport = [];
-        $seenProfessors = [];
-
-        foreach ($rows as $index => $row) {
-            if ($index === 0 || $index === 1) continue;
-            if (empty(array_filter($row))) continue;
-
-            $lineNum = $index + 1;
-
-            $nom = trim($row[0] ?? '');
-            $prenom = trim($row[1] ?? '');
-            $specialite = trim($row[2] ?? '');
-            $profKey = strtoupper($nom . '|' . $prenom);
-
-            $data = [
-                'nom' => $nom,
-                'prenom' => $prenom,
-                'specialite' => $specialite,
-            ];
-
-            $validator = $this->validateRow($data, [
-                'nom' => 'required|string',
-                'prenom' => 'required|string',
-                'specialite' => 'required|string',
-            ]);
-
-            if ($validator->fails()) {
-                $missingFields = implode(', ', $validator->errors()->keys());
-                $errors[] = "Ligne $lineNum : Donnees manquantes ou invalides ($missingFields)";
-                continue;
-            }
-
-            if (in_array($profKey, $seenProfessors)) {
-                $errors[] = "Ligne $lineNum : Le professeur $nom $prenom apparait deux fois dans le fichier.";
-                continue;
-            }
-
-            $seenProfessors[] = $profKey;
-            $dataToImport[] = $data;
-        }
-
-        if (count($errors) > 0) {
-            return [
-                'imported' => 0,
-                'errors' => $errors,
-            ];
-        }
-
+    private function prepareWorkbook(UploadedFile $file): array
+    {
         try {
-            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-
-            Soutenance::truncate();
-            Professeur::truncate();
-
-            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-
-            return DB::transaction(function () use ($dataToImport) {
-                $importedCount = 0;
-
-                foreach ($dataToImport as $data) {
-                    Professeur::create($data);
-                    $importedCount++;
-                }
-
-                return [
-                    'imported' => $importedCount,
-                    'errors' => [],
-                ];
-            });
-        } catch (\Exception $e) {
+            $spreadsheet = IOFactory::load($file->getRealPath());
+        } catch (\Throwable $e) {
             return [
-                'imported' => 0,
-                'errors' => [$e->getMessage()],
+                'professeurs' => ['data' => [], 'errors' => []],
+                'etudiants' => ['data' => [], 'errors' => []],
+                'salles' => ['data' => [], 'errors' => []],
+                'errors' => ["Impossible de lire le fichier Excel : {$e->getMessage()}"],
             ];
         }
+
+        $professeursSheet = $this->findSheet($spreadsheet, ['professeur', 'professeurs', 'enseignant', 'enseignants'], 0);
+        $etudiantsSheet = $this->findSheet($spreadsheet, ['etudiant', 'etudiants', 'student', 'students'], 1);
+        $sallesSheet = $this->findSheet($spreadsheet, ['salle', 'salles', 'classroom', 'classrooms'], 2);
+
+        $missingErrors = [];
+
+        if (!$professeursSheet) {
+            $missingErrors[] = 'La feuille professeur est introuvable.';
+        }
+
+        if (!$etudiantsSheet) {
+            $missingErrors[] = 'La feuille etudiant est introuvable.';
+        }
+
+        if (!$sallesSheet) {
+            $missingErrors[] = 'La feuille salle est introuvable.';
+        }
+
+        if (!empty($missingErrors)) {
+            return [
+                'professeurs' => ['data' => [], 'errors' => []],
+                'etudiants' => ['data' => [], 'errors' => []],
+                'salles' => ['data' => [], 'errors' => []],
+                'errors' => $missingErrors,
+            ];
+        }
+
+        $professeurs = $this->prepareProfesseurs($professeursSheet);
+        $etudiants = $this->prepareEtudiants($etudiantsSheet);
+        $salles = $this->prepareSalles($sallesSheet);
+
+        return [
+            'professeurs' => $professeurs,
+            'etudiants' => $etudiants,
+            'salles' => $salles,
+            'errors' => array_merge(
+                $professeurs['errors'],
+                $etudiants['errors'],
+                $salles['errors']
+            ),
+        ];
     }
 
-    private function preparerEtudiants(UploadedFile $file): array
+    private function prepareEtudiants(Worksheet $sheet): array
     {
-        $rows = $this->readExcel($file);
         $errors = [];
         $dataToImport = [];
         $seenCNEs = [];
+        $seenEmails = [];
 
-        foreach ($rows as $index => $row) {
-            if ($index === 0) continue;
-            if (empty(array_filter($row))) continue;
+        foreach ($sheet->toArray() as $index => $row) {
+            if ($this->shouldSkipRow($row, $index, ['cne', 'nom', 'prenom', 'email', 'filiere', 'sujet', 'langue'])) {
+                continue;
+            }
 
             $lineNum = $index + 1;
+            $hasAcademicEmailColumn = trim((string) ($row[7] ?? '')) !== '';
 
             $data = [
-                'cne' => trim($row[0] ?? ''),
-                'nom' => trim($row[1] ?? ''),
-                'prenom' => trim($row[2] ?? ''),
-                'email' => trim($row[4] ?? ''),
-                'filiere' => trim($row[5] ?? ''),
-                'sujet' => trim($row[6] ?? ''),
-                'langue' => trim($row[7] ?? ''),
+                'cne' => trim((string) ($row[0] ?? '')),
+                'nom' => trim((string) ($row[1] ?? '')),
+                'prenom' => trim((string) ($row[2] ?? '')),
+                'email' => trim((string) ($hasAcademicEmailColumn ? ($row[4] ?? '') : ($row[3] ?? ''))),
+                'filiere' => trim((string) ($hasAcademicEmailColumn ? ($row[5] ?? '') : ($row[4] ?? ''))),
+                'sujet' => trim((string) ($hasAcademicEmailColumn ? ($row[6] ?? '') : ($row[5] ?? ''))),
+                'langue' => trim((string) ($hasAcademicEmailColumn ? ($row[7] ?? '') : ($row[6] ?? ''))),
             ];
 
             $validator = $this->validateRow($data, [
@@ -203,20 +185,30 @@ class ImportExcelService
 
             if ($validator->fails()) {
                 $missingFields = implode(', ', $validator->errors()->keys());
-                $errors[] = "Ligne $lineNum : Donnees manquantes ou invalides ($missingFields)";
+                $errors[] = "Feuille etudiant, ligne {$lineNum} : donnees manquantes ou invalides ({$missingFields}).";
                 continue;
             }
 
-            if (!empty($data['cne'])) {
-                if (in_array($data['cne'], $seenCNEs)) {
-                    $errors[] = "Ligne $lineNum : Le CNE " . $data['cne'] . " est duplique dans le fichier.";
-                    continue;
-                }
+            $cneKey = strtoupper($data['cne']);
+            $emailKey = strtolower($data['email']);
 
-                $seenCNEs[] = $data['cne'];
+            if (in_array($cneKey, $seenCNEs, true)) {
+                $errors[] = "Feuille etudiant, ligne {$lineNum} : le CNE {$data['cne']} est duplique.";
+                continue;
             }
 
+            if (in_array($emailKey, $seenEmails, true)) {
+                $errors[] = "Feuille etudiant, ligne {$lineNum} : l'email {$data['email']} est duplique.";
+                continue;
+            }
+
+            $seenCNEs[] = $cneKey;
+            $seenEmails[] = $emailKey;
             $dataToImport[] = $data;
+        }
+
+        if (empty($dataToImport)) {
+            $errors[] = 'La feuille etudiant ne contient aucune ligne valide.';
         }
 
         return [
@@ -225,13 +217,177 @@ class ImportExcelService
         ];
     }
 
-    private function importPfes(array $data, Etudiant $etudiant): void
+    private function prepareProfesseurs(Worksheet $sheet): array
     {
-        Pfe::create([
-            'sujet' => $data['sujet'],
-            'langue' => $data['langue'],
-            'id_etudiant' => $etudiant->id_etudiant,
-            'id_encadrant' => null,
-        ]);
+        $errors = [];
+        $dataToImport = [];
+        $seenProfessors = [];
+
+        foreach ($sheet->toArray() as $index => $row) {
+            if ($this->shouldSkipRow($row, $index, ['nom', 'prenom', 'specialite'])) {
+                continue;
+            }
+
+            $lineNum = $index + 1;
+            $data = [
+                'nom' => trim((string) ($row[0] ?? '')),
+                'prenom' => trim((string) ($row[1] ?? '')),
+                'specialite' => trim((string) ($row[2] ?? '')),
+            ];
+
+            $validator = $this->validateRow($data, [
+                'nom' => 'required|string',
+                'prenom' => 'required|string',
+                'specialite' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                $missingFields = implode(', ', $validator->errors()->keys());
+                $errors[] = "Feuille professeur, ligne {$lineNum} : donnees manquantes ou invalides ({$missingFields}).";
+                continue;
+            }
+
+            $profKey = strtoupper($data['nom'] . '|' . $data['prenom']);
+
+            if (in_array($profKey, $seenProfessors, true)) {
+                $errors[] = "Feuille professeur, ligne {$lineNum} : le professeur {$data['nom']} {$data['prenom']} est duplique.";
+                continue;
+            }
+
+            $seenProfessors[] = $profKey;
+            $dataToImport[] = $data;
+        }
+
+        if (empty($dataToImport)) {
+            $errors[] = 'La feuille professeur ne contient aucune ligne valide.';
+        }
+
+        return [
+            'data' => $dataToImport,
+            'errors' => $errors,
+        ];
+    }
+
+    private function prepareSalles(Worksheet $sheet): array
+    {
+        $errors = [];
+        $dataToImport = [];
+        $seenSalles = [];
+
+        foreach ($sheet->toArray() as $index => $row) {
+            if ($this->shouldSkipRow($row, $index, ['salle', 'nom', 'disponible'])) {
+                continue;
+            }
+
+            $lineNum = $index + 1;
+            $data = [
+                'nom' => trim((string) ($row[0] ?? '')),
+                'disponible' => $this->parseDisponible($row[1] ?? null),
+            ];
+
+            $validator = $this->validateRow($data, [
+                'nom' => 'required|string',
+                'disponible' => 'boolean',
+            ]);
+
+            if ($validator->fails()) {
+                $missingFields = implode(', ', $validator->errors()->keys());
+                $errors[] = "Feuille salle, ligne {$lineNum} : donnees manquantes ou invalides ({$missingFields}).";
+                continue;
+            }
+
+            $salleKey = strtoupper($data['nom']);
+
+            if (in_array($salleKey, $seenSalles, true)) {
+                $errors[] = "Feuille salle, ligne {$lineNum} : la salle {$data['nom']} est dupliquee.";
+                continue;
+            }
+
+            $seenSalles[] = $salleKey;
+            $dataToImport[] = $data;
+        }
+
+        if (empty($dataToImport)) {
+            $errors[] = 'La feuille salle ne contient aucune ligne valide.';
+        }
+
+        return [
+            'data' => $dataToImport,
+            'errors' => $errors,
+        ];
+    }
+
+    private function findSheet(Spreadsheet $spreadsheet, array $aliases, int $fallbackIndex): ?Worksheet
+    {
+        $normalizedAliases = array_map(fn ($alias) => $this->normalizeLabel($alias), $aliases);
+
+        foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
+            $title = $this->normalizeLabel($sheet->getTitle());
+
+            if (in_array($title, $normalizedAliases, true)) {
+                return $sheet;
+            }
+        }
+
+        return $spreadsheet->getSheetCount() > $fallbackIndex
+            ? $spreadsheet->getSheet($fallbackIndex)
+            : null;
+    }
+
+    private function shouldSkipRow(array $row, int $index, array $headerKeywords): bool
+    {
+        $values = array_values(array_filter(array_map(
+            fn ($value) => trim((string) $value),
+            $row
+        ), fn ($value) => $value !== ''));
+
+        if (empty($values)) {
+            return true;
+        }
+
+        $normalizedValues = array_map(fn ($value) => $this->normalizeLabel($value), $values);
+        $normalizedHeaders = array_map(fn ($value) => $this->normalizeLabel($value), $headerKeywords);
+
+        if ($index === 0 || count(array_intersect($normalizedValues, $normalizedHeaders)) >= 2) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function parseDisponible($value): bool
+    {
+        $value = $this->normalizeLabel((string) $value);
+
+        if ($value === '') {
+            return true;
+        }
+
+        return !in_array($value, ['0', 'false', 'faux', 'non', 'no', 'indisponible'], true);
+    }
+
+    private function normalizeLabel(string $value): string
+    {
+        $value = trim($value);
+        $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+
+        if ($converted !== false) {
+            $value = $converted;
+        }
+
+        $value = strtolower($value);
+
+        return preg_replace('/[^a-z0-9]+/', '', $value) ?? '';
+    }
+
+    private function emptyResult(array $errors): array
+    {
+        return [
+            'students_imported' => 0,
+            'pfes_imported' => 0,
+            'professeurs_imported' => 0,
+            'salles_imported' => 0,
+            'errors' => $errors,
+        ];
     }
 }

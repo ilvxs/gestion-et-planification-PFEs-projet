@@ -6,21 +6,28 @@
     </p>
 
     <div class="row g-3 mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="border rounded p-3 bg-light">
                 <div class="text-muted">Nombre total d’étudiants</div>
                 <div class="fs-3 fw-bold">{{ $totalEtudiants }}</div>
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="border rounded p-3 bg-light">
                 <div class="text-muted">Nombre total de professeurs</div>
                 <div class="fs-3 fw-bold">{{ $totalProfesseurs }}</div>
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <div class="border rounded p-3 bg-light">
+                <div class="text-muted">Nombre total de salles</div>
+                <div class="fs-3 fw-bold">{{ $totalSalles }}</div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
             <div class="border rounded p-3 bg-light">
                 <div class="text-muted">Nombre total de soutenances</div>
                 <div class="fs-3 fw-bold">{{ $totalSoutenances }}</div>

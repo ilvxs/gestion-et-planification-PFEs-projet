@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Salle;
 use App\Services\PlanningService;
 
 class PlanningController extends Controller
@@ -10,15 +11,17 @@ class PlanningController extends Controller
     {
         $dateDebut = session('date_soutenance');
         $dateFin = session('date_fin_soutenance');
-        $salles = session('salles');
         $creneaux = session('creneaux');
+        $salles = Salle::where('disponible', true)
+            ->orderBy('nom')
+            ->get();
 
-        if (!$dateDebut || !$dateFin || empty($salles) || empty($creneaux)) {
+        if (!$dateDebut || !$dateFin || $salles->isEmpty() || empty($creneaux)) {
             return view('planning.result', [
                 'result' => [
                     'created' => 0,
                     'errors' => [
-                        "La periode de soutenance, les salles ou les creneaux ne sont pas disponibles. Veuillez refaire l'importation."
+                        "La periode de soutenance, les salles disponibles ou les creneaux ne sont pas disponibles. Veuillez refaire l'importation."
                     ],
                     'warnings' => [],
                     'planning' => [],

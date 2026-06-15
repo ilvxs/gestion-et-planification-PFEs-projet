@@ -210,6 +210,7 @@ class VerificationService
         $soutenances = Soutenance::with([
             'pfe.etudiant',
             'pfe.encadrant',
+            'salle',
             'jury1',
             'jury2',
         ])->get();
@@ -300,13 +301,19 @@ class VerificationService
 
         $salleCreneaux = [];
         $conflitsSalles = [];
+        $soutenancesSansSalle = [];
 
         foreach ($soutenances as $soutenance) {
             $date = Carbon::parse($soutenance->date_soutenance)->toDateString();
             $heure = $this->normaliserHeure($soutenance->heure_debut);
-            $salle = trim((string) $soutenance->salle);
+            $idSalle = (int) $soutenance->id_salle;
 
-            $key = $date . '|' . $heure . '|' . $salle;
+            if ($idSalle <= 0 || !$soutenance->salle) {
+                $soutenancesSansSalle[] = $soutenance;
+                continue;
+            }
+
+            $key = $date . '|' . $heure . '|' . $idSalle;
 
             if (isset($salleCreneaux[$key])) {
                 $conflitsSalles[] = $soutenance;
@@ -315,13 +322,22 @@ class VerificationService
             $salleCreneaux[$key] = true;
         }
 
-        if (empty($conflitsSalles)) {
+        if (empty($soutenancesSansSalle) && empty($conflitsSalles)) {
             $checks[] = $this->checkOk("Aucune salle n'est utilisée deux fois dans la meme date et meme heure.");
         } else {
-            $message = count($conflitsSalles) . ' conflit(s) salle/date/heure détecté(s).';
+            if (!empty($soutenancesSansSalle)) {
+                $message = count($soutenancesSansSalle) . ' soutenance(s) sans salle associée dans la base de données.';
 
-            $errors[] = $message;
-            $checks[] = $this->checkFail($message);
+                $errors[] = $message;
+                $checks[] = $this->checkFail($message);
+            }
+
+            if (!empty($conflitsSalles)) {
+                $message = count($conflitsSalles) . ' conflit(s) salle/date/heure détecté(s).';
+
+                $errors[] = $message;
+                $checks[] = $this->checkFail($message);
+            }
         }
 
         /*
@@ -590,6 +606,7 @@ class VerificationService
                 'total_soutenances' => $totalSoutenances,
                 'conflits_jurys' => count($conflitsJurys),
                 'conflits_salles' => count($conflitsSalles),
+                'soutenances_sans_salle' => count($soutenancesSansSalle),
                 'conflits_profs_meme_horaire' => count($conflitsProfs),
                 'conflits_consecutifs' => count($conflitsConsecutifs),
                 'soutenances_dimanche' => $soutenancesDimanche->count(),

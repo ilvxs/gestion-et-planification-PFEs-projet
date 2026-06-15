@@ -1,8 +1,8 @@
-<x-layout title="Importation des données">
-    <span class="step-badge">Étape 1 / 5</span>
-    <h1 class="mb-3">Importation des données PFE</h1>
+<x-layout title="Importation des donnees">
+    <span class="step-badge">Etape 1 / 5</span>
+    <h1 class="mb-3">Importation des donnees PFE</h1>
     <p class="text-muted mb-4">
-        Importez le fichier des étudiants/PFEs, le fichier des professeurs, puis choisissez la date de début et les salles disponibles.
+        Importez un seul fichier Excel contenant les trois feuilles : professeur, etudiant et salle.
     </p>
 
     @if($errors->any())
@@ -19,20 +19,19 @@
     <form action="{{ route('imports.all') }}" method="POST" enctype="multipart/form-data" class="row g-4">
         @csrf
 
-        <div class="col-md-6">
-            <label class="form-label fw-semibold">Fichier des étudiants et PFEs</label>
-            <input type="file" name="students_file" class="form-control">
-            <small class="text-muted">Colonnes attendues : CNE, nom, prénom, email, filière, sujet, langue.</small>
-        </div>
-
-        <div class="col-md-6">
-            <label class="form-label fw-semibold">Fichier des professeurs</label>
-            <input type="file" name="professeurs_file" class="form-control">
-            <small class="text-muted">Colonnes attendues : nom, prénom, spécialité.</small>
+        <div class="col-md-8">
+            <label class="form-label fw-semibold">Fichier Excel unifie</label>
+            <input type="file" name="import_file" class="form-control">
+            <small class="text-muted">
+                Feuilles attendues : professeur, etudiant, salle.
+                Professeur : nom, prenom, specialite.
+                Etudiant : CNE, nom, prenom, email personnel, email academique, filiere, sujet, langue.
+                Salle : nom, disponible optionnel.
+            </small>
         </div>
 
         <div class="col-md-4">
-            <label class="form-label fw-semibold">Date de début des soutenances</label>
+            <label class="form-label fw-semibold">Date de debut des soutenances</label>
             <input type="date" name="date_soutenance" class="form-control" value="{{ old('date_soutenance') }}">
         </div>
 
@@ -50,7 +49,7 @@
                         <div class="fw-semibold mb-3">Matin</div>
                         <div class="row g-2">
                             <div class="col-sm-6">
-                                <label for="heure_debut_matin" class="form-label">Heure de début</label>
+                                <label for="heure_debut_matin" class="form-label">Heure de debut</label>
                                 <input
                                     type="time"
                                     id="heure_debut_matin"
@@ -75,10 +74,10 @@
 
                 <div class="col-md-6">
                     <div class="border rounded p-3 bg-light h-100">
-                        <div class="fw-semibold mb-3">Après-midi</div>
+                        <div class="fw-semibold mb-3">Apres-midi</div>
                         <div class="row g-2">
                             <div class="col-sm-6">
-                                <label for="heure_debut_apres_midi" class="form-label">Heure de début</label>
+                                <label for="heure_debut_apres_midi" class="form-label">Heure de debut</label>
                                 <input
                                     type="time"
                                     id="heure_debut_apres_midi"
@@ -104,22 +103,8 @@
         </div>
 
         <div class="col-12">
-            <label class="form-label fw-semibold">Salles disponibles</label>
-            <div class="row g-2">
-                @foreach(['Salle A', 'Salle B', 'Salle C', 'Salle D', 'Salle E'] as $salle)
-                    <div class="col-md-2 col-6">
-                        <label class="border rounded p-2 w-100 bg-light">
-                            <input type="checkbox" name="salles[]" value="{{ $salle }}" {{ in_array($salle, old('salles', [])) ? 'checked' : '' }}>
-                            {{ $salle }}
-                        </label>
-                    </div>
-                @endforeach
-            </div>
-        </div>
-
-        <div class="col-12">
             <button type="submit" class="btn btn-main px-4">
-                Importer toutes les données
+                Importer toutes les donnees
             </button>
         </div>
     </form>

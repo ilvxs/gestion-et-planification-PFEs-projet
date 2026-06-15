@@ -20,12 +20,13 @@ class DocumentController extends Controller
         $soutenances = Soutenance::with([
                 'pfe.etudiant',
                 'pfe.encadrant',
+                'salle',
                 'jury1',
                 'jury2',
             ])
             ->orderBy('date_soutenance')
             ->orderBy('heure_debut')
-            ->orderBy('salle')
+            ->orderBy('id_salle')
             ->get();
 
         if ($soutenances->isEmpty()) {
@@ -77,6 +78,7 @@ class DocumentController extends Controller
         $soutenances = Soutenance::with([
                 'pfe.etudiant',
                 'pfe.encadrant',
+                'salle',
                 'jury1',
                 'jury2',
             ])

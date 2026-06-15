@@ -12,7 +12,7 @@ class Soutenance extends Model
     protected $fillable = [
         'date_soutenance',
         'heure_debut',
-        'salle',
+        'id_salle',
         'id_pfe',
         'id_jury1',
         'id_jury2'
@@ -21,6 +21,11 @@ class Soutenance extends Model
     public function pfe()
     {
         return $this->belongsTo(Pfe::class, 'id_pfe', 'id_pfe');
+    }
+
+    public function salle()
+    {
+        return $this->belongsTo(Salle::class, 'id_salle', 'id_salle');
     }
 
     public function jury1()

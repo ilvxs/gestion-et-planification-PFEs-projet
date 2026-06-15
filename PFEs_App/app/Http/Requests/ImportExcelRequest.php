@@ -7,74 +7,54 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class ImportExcelRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'students_file' => [
+            'import_file' => [
                 'required',
                 'file',
-                'mimes:xlsx,xls'
-            ],
-
-            'professeurs_file' => [
-                'required',
-                'file',
-                'mimes:xlsx,xls'
+                'mimes:xlsx,xls',
             ],
 
             'date_soutenance' => [
                 'required',
                 'date',
-                'after:today'
+                'after:today',
             ],
 
             'date_fin_soutenance' => [
                 'required',
                 'date',
-                'after_or_equal:date_soutenance'
-            ],
-
-            'salles' => [
-                'required',
-                'array'
-            ],
-
-            'salles.*' => [
-                'string'
+                'after_or_equal:date_soutenance',
             ],
 
             'heure_debut_matin' => [
                 'required',
-                'date_format:H:i'
+                'date_format:H:i',
             ],
 
             'heure_fin_matin' => [
                 'required',
-                'date_format:H:i'
+                'date_format:H:i',
             ],
 
             'heure_debut_apres_midi' => [
                 'required',
-                'date_format:H:i'
+                'date_format:H:i',
             ],
 
             'heure_fin_apres_midi' => [
                 'required',
-                'date_format:H:i'
-            ]
+                'date_format:H:i',
+            ],
         ];
     }
 
@@ -136,82 +116,30 @@ class ImportExcelRequest extends FormRequest
         return $creneaux;
     }
 
-    /**
-     * Custom error messages.
-     */
     public function messages(): array
     {
         return [
+            'import_file.required' => 'Le fichier Excel unifie est obligatoire.',
+            'import_file.file' => 'Le fichier Excel doit etre un fichier valide.',
+            'import_file.mimes' => 'Le fichier doit etre Excel (.xlsx ou .xls).',
 
-            'students_file.required'
-                => 'Le fichier des étudiants est obligatoire.',
+            'date_soutenance.required' => 'La date des soutenances est obligatoire.',
+            'date_soutenance.date' => 'Veuillez choisir une date valide.',
+            'date_soutenance.after' => 'La date de soutenance doit etre apres aujourd\'hui.',
 
-            'students_file.file'
-                => 'Le fichier des étudiants doit être un fichier valide.',
+            'date_fin_soutenance.required' => 'La date de fin des soutenances est obligatoire.',
+            'date_fin_soutenance.date' => 'Veuillez choisir une date de fin valide.',
+            'date_fin_soutenance.after_or_equal' => 'La date de fin des soutenances doit etre apres ou egale a la date de debut.',
 
-            'students_file.mimes'
-                => 'Le fichier des étudiants doit être Excel (.xlsx ou .xls).',
-
-            'professeurs_file.required'
-                => 'Le fichier des professeurs est obligatoire.',
-
-            'professeurs_file.file'
-                => 'Le fichier des professeurs doit être un fichier valide.',
-
-            'professeurs_file.mimes'
-                => 'Le fichier des professeurs doit être Excel (.xlsx ou .xls).',
-
-            'date_soutenance.required'
-                => 'La date des soutenances est obligatoire.',
-
-            'date_soutenance.date'
-                => 'Veuillez choisir une date valide.',
-
-            'date_soutenance.after'
-                => 'La date de soutenance doit être après aujourd\'hui.',   
-
-            'date_fin_soutenance.required'
-                => 'La date de fin des soutenances est obligatoire.',
-
-            'date_fin_soutenance.date'
-                => 'Veuillez choisir une date de fin valide.',
-
-            'date_fin_soutenance.after_or_equal'
-                => 'La date de fin des soutenances doit etre apres ou egale a la date de debut.',
-
-            'salles.required'
-                => 'Veuillez sélectionner au moins une salle.',
-
-            'salles.array'
-                => 'Le format des salles est invalide.',
-
-            'salles.*.string'
-                => 'Une des salles sélectionnées est invalide.',
-
-            'heure_debut_matin.required'
-                => 'Veuillez saisir l\'heure de debut du matin.',
-
-            'heure_debut_matin.date_format'
-                => 'L\'heure de debut du matin est invalide.',
-
-            'heure_fin_matin.required'
-                => 'Veuillez saisir l\'heure de fin du matin.',
-
-            'heure_fin_matin.date_format'
-                => 'L\'heure de fin du matin est invalide.',
-
-            'heure_debut_apres_midi.required'
-                => 'Veuillez saisir l\'heure de debut de l\'apres-midi.',
-
-            'heure_debut_apres_midi.date_format'
-                => 'L\'heure de debut de l\'apres-midi est invalide.',
-
-            'heure_fin_apres_midi.required'
-                => 'Veuillez saisir l\'heure de fin de l\'apres-midi.',
-
-            'heure_fin_apres_midi.date_format'
-                => 'L\'heure de fin de l\'apres-midi est invalide.'
-        ];    
+            'heure_debut_matin.required' => 'Veuillez saisir l\'heure de debut du matin.',
+            'heure_debut_matin.date_format' => 'L\'heure de debut du matin est invalide.',
+            'heure_fin_matin.required' => 'Veuillez saisir l\'heure de fin du matin.',
+            'heure_fin_matin.date_format' => 'L\'heure de fin du matin est invalide.',
+            'heure_debut_apres_midi.required' => 'Veuillez saisir l\'heure de debut de l\'apres-midi.',
+            'heure_debut_apres_midi.date_format' => 'L\'heure de debut de l\'apres-midi est invalide.',
+            'heure_fin_apres_midi.required' => 'Veuillez saisir l\'heure de fin de l\'apres-midi.',
+            'heure_fin_apres_midi.date_format' => 'L\'heure de fin de l\'apres-midi est invalide.',
+        ];
     }
 
     private function validerPlageHoraire(

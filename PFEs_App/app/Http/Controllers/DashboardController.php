@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Etudiant;
 use App\Models\Pfe;
 use App\Models\Professeur;
+use App\Models\Salle;
 use App\Models\Soutenance;
 use Carbon\Carbon;
 
@@ -14,6 +15,7 @@ class DashboardController extends Controller
     {
         $totalEtudiants = Etudiant::count();
         $totalProfesseurs = Professeur::count();
+        $totalSalles = Salle::count();
         $totalSoutenances = Soutenance::count();
 
         $professeurs = Professeur::orderBy('nom')->orderBy('prenom')->get();
@@ -108,6 +110,7 @@ class DashboardController extends Controller
         return view('dashboard.index', compact(
             'totalEtudiants',
             'totalProfesseurs',
+            'totalSalles',
             'totalSoutenances',
             'etudiantsParProfesseur',
             'soutenancesParProfesseur',

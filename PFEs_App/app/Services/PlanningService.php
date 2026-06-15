@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Pfe;
 use App\Models\Professeur;
+use App\Models\Salle;
 use App\Models\Soutenance;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -146,7 +147,7 @@ class PlanningService
                 break;
             }
 
-            if ($this->salleOccupeeRapide($occupation, $slot['date'], $slot['minute'], $slot['salle'], $duree)) {
+            if ($this->salleOccupeeRapide($occupation, $slot['date'], $slot['minute'], $slot['id_salle'], $duree)) {
                 continue;
             }
 
@@ -236,7 +237,7 @@ class PlanningService
                 $occupation,
                 $slot['date'],
                 $slot['minute'],
-                $slot['salle'],
+                $slot['id_salle'],
                 [$encadrant, $jury1, $jury2]
             );
             $this->mettreAJourRepartitionProfs($repartitionProfs, [$encadrant, $jury1, $jury2], $slot['date'], $slot['heure']);
@@ -468,7 +469,7 @@ class PlanningService
             return false;
         }
 
-        if ($this->salleOccupeeRapide($occupation, $slot['date'], $slot['minute'], $slot['salle'], $duree)) {
+        if ($this->salleOccupeeRapide($occupation, $slot['date'], $slot['minute'], $slot['id_salle'], $duree)) {
             return false;
         }
         $encadrant = $pfe->encadrant;
@@ -500,10 +501,10 @@ class PlanningService
         array $occupation,
         string $date,
         int $nouvelleMinute,
-        string $salle,
+        int $idSalle,
         int $duree
     ): bool {
-        $minutesOccupees = $occupation['salles'][$date][$salle] ?? [];
+        $minutesOccupees = $occupation['salles'][$date][$idSalle] ?? [];
 
         foreach ($minutesOccupees as $ancienneMinute) {
             if (abs($nouvelleMinute - $ancienneMinute) < $duree) {
@@ -542,18 +543,18 @@ class PlanningService
         array &$occupation,
         string $date,
         int $minute,
-        string $salle,
+        int $idSalle,
         array $professeurs
     ): void {
         if (!isset($occupation['salles'][$date])) {
             $occupation['salles'][$date] = [];
         }
 
-        if (!isset($occupation['salles'][$date][$salle])) {
-            $occupation['salles'][$date][$salle] = [];
+        if (!isset($occupation['salles'][$date][$idSalle])) {
+            $occupation['salles'][$date][$idSalle] = [];
         }
 
-        $occupation['salles'][$date][$salle][] = $minute;
+        $occupation['salles'][$date][$idSalle][] = $minute;
 
         foreach ($professeurs as $prof) {
             $idProf = (int) $prof->id_professeur;
@@ -751,7 +752,7 @@ class PlanningService
             $row = [
                 'date_soutenance' => $item['date'],
                 'heure_debut' => $item['heure'],
-                'salle' => $item['salle'],
+                'id_salle' => $item['id_salle'],
                 'id_pfe' => $item['id_pfe'],
                 'id_jury1' => $item['id_jury1'],
                 'id_jury2' => $item['id_jury2'],
@@ -780,6 +781,7 @@ class PlanningService
         return [
             'date' => $slot['date'],
             'heure' => $slot['heure'],
+            'id_salle' => $slot['id_salle'],
             'salle' => $slot['salle'],
             'filiere' => $this->filierePfe($pfe),
             'langue' => $pfe->langue ?? '-',
@@ -954,7 +956,8 @@ class PlanningService
                             'date' => $date->toDateString(),
                             'heure' => $heure,
                             'minute' => $this->minutesDepuisMinuit($heure),
-                            'salle' => $salle,
+                            'id_salle' => $salle['id_salle'],
+                            'salle' => $salle['nom'],
                         ];
                     }
                 }
@@ -975,14 +978,32 @@ class PlanningService
         $result = [];
 
         foreach ((array) $salles as $salle) {
-            $salle = trim((string) $salle);
+            if ($salle instanceof Salle) {
+                $idSalle = (int) $salle->id_salle;
+                $nom = trim((string) $salle->nom);
+            } elseif (is_array($salle)) {
+                $idSalle = (int) ($salle['id_salle'] ?? $salle['id'] ?? 0);
+                $nom = trim((string) ($salle['nom'] ?? ''));
+            } elseif (is_numeric($salle)) {
+                $model = Salle::find((int) $salle);
+                $idSalle = $model ? (int) $model->id_salle : 0;
+                $nom = $model ? trim((string) $model->nom) : '';
+            } else {
+                $nom = trim((string) $salle);
+                $model = $nom !== '' ? Salle::where('nom', $nom)->first() : null;
+                $idSalle = $model ? (int) $model->id_salle : 0;
+                $nom = $model ? trim((string) $model->nom) : $nom;
+            }
 
-            if ($salle !== '') {
-                $result[] = $salle;
+            if ($idSalle > 0 && $nom !== '') {
+                $result[$idSalle] = [
+                    'id_salle' => $idSalle,
+                    'nom' => $nom,
+                ];
             }
         }
 
-        return array_values(array_unique($result));
+        return array_values($result);
     }
 
     private function normaliserCreneaux($creneaux): array
