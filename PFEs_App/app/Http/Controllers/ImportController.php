@@ -25,10 +25,12 @@ class ImportController extends Controller
         session()->forget(['planning_generated', 'verification_completed']);
         Soutenance::query()->delete();
 
+        $creneaux = $request->creneaux();
+
         session([
             'date_soutenance' => $request->date_soutenance,
             'salles' => $request->salles,
-            'creneaux' => $request->creneaux,
+            'creneaux' => $creneaux,
         ]);
 
         $studentsResult = $this->importService->importEtudiants(

@@ -22,7 +22,7 @@
         <div class="col-md-6">
             <label class="form-label fw-semibold">Fichier des étudiants et PFEs</label>
             <input type="file" name="students_file" class="form-control">
-            <small class="text-muted">Colonnes attendues : CNE, nom, prénom, email personnel, email académique, filière, sujet, langue.</small>
+            <small class="text-muted">Colonnes attendues : CNE, nom, prénom, email, filière, sujet, langue.</small>
         </div>
 
         <div class="col-md-6">
@@ -37,29 +37,71 @@
         </div>
 
         <div class="col-12">
-            <label class="form-label fw-semibold">Créneaux disponibles</label>
+            <label class="form-label fw-semibold">Horaires</label>
 
-            <div class="row g-2">
-                @foreach(['08:00','09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'] as $creneau)
-                    <div class="col-md-2 col-6">
-                        <label class="border rounded p-2 w-100 bg-light">
-                            <input
-                                type="checkbox"
-                                name="creneaux[]"
-                                value="{{ $creneau }}"
-                                {{ in_array($creneau, old('creneaux', [])) ? 'checked' : '' }}
-                            >
-                            {{ $creneau }}
-                        </label>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="border rounded p-3 bg-light h-100">
+                        <div class="fw-semibold mb-3">Matin</div>
+                        <div class="row g-2">
+                            <div class="col-sm-6">
+                                <label for="heure_debut_matin" class="form-label">Heure de début</label>
+                                <input
+                                    type="time"
+                                    id="heure_debut_matin"
+                                    name="heure_debut_matin"
+                                    class="form-control"
+                                    value="{{ old('heure_debut_matin', '08:00') }}"
+                                >
+                            </div>
+                            <div class="col-sm-6">
+                                <label for="heure_fin_matin" class="form-label">Heure de fin</label>
+                                <input
+                                    type="time"
+                                    id="heure_fin_matin"
+                                    name="heure_fin_matin"
+                                    class="form-control"
+                                    value="{{ old('heure_fin_matin', '12:00') }}"
+                                >
+                            </div>
+                        </div>
                     </div>
-                @endforeach
+                </div>
+
+                <div class="col-md-6">
+                    <div class="border rounded p-3 bg-light h-100">
+                        <div class="fw-semibold mb-3">Après-midi</div>
+                        <div class="row g-2">
+                            <div class="col-sm-6">
+                                <label for="heure_debut_apres_midi" class="form-label">Heure de début</label>
+                                <input
+                                    type="time"
+                                    id="heure_debut_apres_midi"
+                                    name="heure_debut_apres_midi"
+                                    class="form-control"
+                                    value="{{ old('heure_debut_apres_midi', '14:00') }}"
+                                >
+                            </div>
+                            <div class="col-sm-6">
+                                <label for="heure_fin_apres_midi" class="form-label">Heure de fin</label>
+                                <input
+                                    type="time"
+                                    id="heure_fin_apres_midi"
+                                    name="heure_fin_apres_midi"
+                                    class="form-control"
+                                    value="{{ old('heure_fin_apres_midi', '18:00') }}"
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="col-12">
             <label class="form-label fw-semibold">Salles disponibles</label>
             <div class="row g-2">
-                @foreach(['Salle 4 AB', 'Salle 5 AB', 'Salle 16 AB', 'Salle 17 AB', 'Amphi A', 'Amphi B'] as $salle)
+                @foreach(['Salle A', 'Salle B', 'Salle C', 'Salle D', 'Salle E'] as $salle)
                     <div class="col-md-2 col-6">
                         <label class="border rounded p-2 w-100 bg-light">
                             <input type="checkbox" name="salles[]" value="{{ $salle }}" {{ in_array($salle, old('salles', [])) ? 'checked' : '' }}>
