@@ -73,7 +73,8 @@ class AffectationService
                 );
 
                 if (!$this->isProfAnglais($professeur)) {
-                    $warnings[] = "Le PFE '{$pfe->sujet}' est en anglais, mais il a été affecté à un professeur non spécialisé en anglais.";
+                    $libellePfe = $pfe->sujet ?: $pfe->id_pfe;
+                    $warnings[] = "Le PFE {$libellePfe} est en anglais, mais il a été affecté à un professeur non spécialisé en anglais.";
                 }
 
                 $pfe->update([

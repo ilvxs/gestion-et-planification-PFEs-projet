@@ -96,18 +96,6 @@
             width: 88px;
         }
 
-        .id-color {
-            background: #f4b183;
-        }
-
-        .gi-color {
-            background: #b4c6e7;
-        }
-
-        .tdia-color {
-            background-color: #d6104f;
-        }
-
         .unknown-color {
             background: #eeeeee;
         }
@@ -121,21 +109,6 @@
     <div class="dept">Département Mathématiques et Informatique</div>
     <div class="title">Affectation des encadrants de Projet de Fin d'Etude</div>
     <div class="year">Année Universitaire {{ config('pfe.annee_universitaire') }}</div>
-</div>
-
-<div class="legend">
-    <div class="legend-row">
-        <div class="legend-color id-color"></div>
-        <div class="legend-text">Filière ID</div>
-    </div>
-    <div class="legend-row">
-        <div class="legend-color gi-color"></div>
-        <div class="legend-text">Filière GI</div>
-    </div>
-    <div class="legend-row">
-        <div class="legend-color tdia-color"></div>
-        <div class="legend-text">Filière TDIA</div>
-    </div>
 </div>
 
 <table>
@@ -176,20 +149,15 @@
                     @for($i = 0; $i < 4; $i++)
                         @php
                             $pfe = $chunk[$i] ?? null;
-                            $filiere = strtoupper(trim((string) ($pfe?->etudiant?->filiere ?? '')));
-                            $colorClass = match($filiere) {
-                                'ID',  'DATA' => 'id-color',
-                                'GI', 'INFORMATIQUE' => 'gi-color',
-                                'TDIA', 'TRANSFORMATION DIGITAL', 'IA', 'AI'  => 'tdia-color',
-                                default => 'unknown-color',
-                            };
+                            $filiere = strtoupper(trim((string) ($pfe?->etudiant?->filiere ?? 'NON_DEFINIE')));
+                            $color = $filiereColors[$filiere] ?? '#eeeeee';
                         @endphp
 
                         @if($pfe)
-                            <td class="student-cell {{ $colorClass }}">
+                            <td class="student-cell" style="background: {{ $color }};">
                                 {{ strtoupper($pfe->etudiant?->nom) }}
                             </td>
-                            <td class="student-cell {{ $colorClass }}">
+                            <td class="student-cell" style="background: {{ $color }};">
                                 {{ $pfe->etudiant?->prenom }}
                             </td>
                         @else

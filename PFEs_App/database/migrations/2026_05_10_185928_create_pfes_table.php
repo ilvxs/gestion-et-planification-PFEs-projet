@@ -10,15 +10,15 @@ return new class extends Migration
     public function up(): void
 {
     Schema::create('pfes', function (Blueprint $table) {
-        $table->id('id_pfe'); // Clé primaire
-        $table->string('sujet');
+        $table->id('id_pfe'); // cle primaire
+        $table->string('sujet')->nullable();
         $table->string('langue');
         
-        // Clé étrangère 1 : Etudiant (UNIQUE car un PFE = 1 étudiant)
+        // cle etrangere 1 : Etudiant (UNIQUE car un PFE = 1 étudiant)
         $table->unsignedBigInteger('id_etudiant')->unique(); 
         $table->foreign('id_etudiant')->references('id_etudiant')->on('etudiants')->onDelete('cascade');
 
-        // Clé étrangère 2 : Encadrant (Professeur)
+        // cle etrangere 2 : Encadrant (Professeur)
         $table->unsignedBigInteger('id_encadrant')->nullable();
         $table->foreign('id_encadrant')->references('id_professeur')->on('professeurs')->onDelete('restrict');
         

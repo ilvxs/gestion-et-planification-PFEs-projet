@@ -67,7 +67,7 @@ class ImportExcelService
                     ]);
 
                     Pfe::create([
-                        'sujet' => $item['sujet'],
+                        'sujet' => $item['sujet'] ?? null,
                         'langue' => $item['langue'],
                         'id_etudiant' => $etudiant->id_etudiant,
                         'id_encadrant' => null,
@@ -160,22 +160,87 @@ class ImportExcelService
         $seenCNEs = [];
         $seenEmails = [];
 
-        foreach ($sheet->toArray() as $index => $row) {
-            if ($this->shouldSkipRow($row, $index, ['cne', 'nom', 'prenom', 'email', 'filiere', 'sujet', 'langue'])) {
+        $rows = $sheet->toArray();
+
+        $requiredColumns = [
+            'cne' => ['cne'],
+            'nom' => ['nom'],
+            'prenom' => ['prenom', 'prénom'],
+            'email' => [
+                'email',
+                'mail',
+                'email academique',
+                'email académique',
+                'mail academique',
+                'mail académique',
+                'email personnel',
+                'mail personnel'
+            ],
+            'filiere' => ['filiere', 'filière'],
+            'langue' => ['langue', 'language'],
+        ];
+
+        $optionalColumns = [
+            'sujet' => ['sujet', 'theme', 'thème', 'titre', 'intitule', 'intitulé'],
+            'email_academique' => [
+                'email academique',
+                'email académique',
+                'mail academique',
+                'mail académique'
+            ],
+            'email_personnel' => [
+                'email personnel',
+                'mail personnel'
+            ],
+        ];
+
+        $headerIndex = $this->findHeaderRowIndex($rows, $requiredColumns);
+
+        if ($headerIndex === null) {
+            return [
+                'data' => [],
+                'errors' => [
+                    "Feuille etudiant : ligne d'entete introuvable. Colonnes obligatoires : CNE, nom, prenom, email, filiere, langue."
+                ],
+            ];
+        }
+
+        $columns = $this->buildColumnMap($rows[$headerIndex]);
+
+        $missingColumns = $this->missingRequiredColumns($columns, $requiredColumns);
+
+        if (!empty($missingColumns)) {
+            return [
+                'data' => [],
+                'errors' => [
+                    'Feuille etudiant : colonnes obligatoires manquantes : ' . implode(', ', $missingColumns) . '.'
+                ],
+            ];
+        }
+
+        foreach ($rows as $index => $row) {
+            if ($index <= $headerIndex || $this->isEmptyRow($row)) {
                 continue;
             }
 
             $lineNum = $index + 1;
-            $hasAcademicEmailColumn = trim((string) ($row[7] ?? '')) !== '';
+
+            $emailAcademique = $this->getCellByAliases($row, $columns, $optionalColumns['email_academique']);
+            $emailPersonnel = $this->getCellByAliases($row, $columns, $optionalColumns['email_personnel']);
+            $emailGeneral = $this->getCellByAliases($row, $columns, ['email', 'mail']);
+
+            $email = $emailAcademique ?: ($emailGeneral ?: $emailPersonnel);
+
+            $sujet = $this->getCellByAliases($row, $columns, $optionalColumns['sujet']);
 
             $data = [
-                'cne' => trim((string) ($row[0] ?? '')),
-                'nom' => trim((string) ($row[1] ?? '')),
-                'prenom' => trim((string) ($row[2] ?? '')),
-                'email' => trim((string) ($hasAcademicEmailColumn ? ($row[4] ?? '') : ($row[3] ?? ''))),
-                'filiere' => trim((string) ($hasAcademicEmailColumn ? ($row[5] ?? '') : ($row[4] ?? ''))),
-                'sujet' => trim((string) ($hasAcademicEmailColumn ? ($row[6] ?? '') : ($row[5] ?? ''))),
-                'langue' => trim((string) ($hasAcademicEmailColumn ? ($row[7] ?? '') : ($row[6] ?? ''))),
+                'cne' => $this->getCellByAliases($row, $columns, $requiredColumns['cne']),
+                'nom' => $this->getCellByAliases($row, $columns, $requiredColumns['nom']),
+                'prenom' => $this->getCellByAliases($row, $columns, $requiredColumns['prenom']),
+                'email' => $email,
+                'filiere' => $this->getCellByAliases($row, $columns, $requiredColumns['filiere']),
+                'sujet' => $sujet !== '' ? $sujet : null,
+                'langue' => $this->getCellByAliases($row, $columns, $requiredColumns['langue']),
             ];
 
             $validator = $this->validateRow($data, [
@@ -184,7 +249,7 @@ class ImportExcelService
                 'prenom' => 'required|string',
                 'email' => 'required|email',
                 'filiere' => 'required|string',
-                'sujet' => 'required|string',
+                'sujet' => 'nullable|string',
                 'langue' => 'required|string',
             ]);
 
@@ -209,6 +274,7 @@ class ImportExcelService
 
             $seenCNEs[] = $cneKey;
             $seenEmails[] = $emailKey;
+
             $dataToImport[] = $data;
         }
 
@@ -394,6 +460,92 @@ class ImportExcelService
         return preg_replace('/[^a-z0-9]+/', '', $value) ?? '';
     }
 
+    private function findHeaderRowIndex(array $rows, array $requiredColumns): ?int
+    {
+        foreach ($rows as $index => $row) {
+            if ($this->isEmptyRow($row)) {
+                continue;
+            }
+
+            $columns = $this->buildColumnMap($row);
+            $found = 0;
+
+            foreach ($requiredColumns as $aliases) {
+                if ($this->findColumnIndex($columns, $aliases) !== null) {
+                    $found++;
+                }
+            }
+
+            if ($found >= 4) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function buildColumnMap(array $headerRow): array
+    {
+        $columns = [];
+
+        foreach ($headerRow as $index => $value) {
+            $label = $this->normalizeLabel((string) $value);
+
+            if ($label !== '') {
+                $columns[$label] = $index;
+            }
+        }
+
+        return $columns;
+    }
+
+    private function findColumnIndex(array $columns, array $aliases): ?int
+    {
+        foreach ($aliases as $alias) {
+            $normalizedAlias = $this->normalizeLabel($alias);
+
+            if (array_key_exists($normalizedAlias, $columns)) {
+                return $columns[$normalizedAlias];
+            }
+        }
+
+        return null;
+    }
+
+    private function getCellByAliases(array $row, array $columns, array $aliases): string
+    {
+        $index = $this->findColumnIndex($columns, $aliases);
+
+        if ($index === null) {
+            return '';
+        }
+
+        return trim((string) ($row[$index] ?? ''));
+    }
+
+    private function missingRequiredColumns(array $columns, array $requiredColumns): array
+    {
+        $missing = [];
+
+        foreach ($requiredColumns as $field => $aliases) {
+            if ($this->findColumnIndex($columns, $aliases) === null) {
+                $missing[] = $field;
+            }
+        }
+
+        return $missing;
+    }
+
+    private function isEmptyRow(array $row): bool
+    {
+        foreach ($row as $value) {
+            if (trim((string) $value) !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
     private function emptyResult(array $errors): array
     {
         return [

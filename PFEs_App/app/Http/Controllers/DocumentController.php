@@ -60,6 +60,7 @@ class DocumentController extends Controller
 
         return Pdf::loadView('documents.affectation_pdf', [
                 'groupes' => $groupes,
+                'filiereColors' => $this->filiereColorsFromPfes($pfes),
             ])
             ->setPaper('a4', 'landscape')
             ->download('Affectation_des_encadrants_PFE.pdf');
@@ -151,7 +152,7 @@ class DocumentController extends Controller
 
             $template->setValue(
                 'intitule_rapport',
-                (string) ($pfe->sujet ?? '-')
+                (string) ($pfe->sujet ?: 'PFE ' . $pfe->id_pfe)
             );
 
             $template->setValue(
@@ -160,7 +161,7 @@ class DocumentController extends Controller
             );
 
             /*
-             jury1 = Président
+             jury1 = President
              jury2 = Rapporteur
              encadrant = Rapporteur
             */
@@ -291,5 +292,46 @@ class DocumentController extends Controller
         }
 
         return trim(($person->nom ?? '') . ' ' . ($person->prenom ?? '')) ?: '-';
+    }
+
+    private function filiereColorsFromPfes($pfes): array
+    {
+        $palette = [
+            '#f4b183',
+            '#b4c6e7',
+            '#d6104f',
+            '#92d050',
+            '#00b0f0',
+            '#ffff00',
+            '#c6e0b4',
+            '#f8cbad',
+            '#cc99ff',
+            '#a9d18e',
+            '#ffc000',
+            '#d9e1f2',
+        ];
+
+        $filieres = $pfes
+            ->map(function ($pfe) {
+                return $this->normaliserFiliere($pfe->etudiant?->filiere);
+            })
+            ->unique()
+            ->sort()
+            ->values();
+
+        $colors = [];
+
+        foreach ($filieres as $index => $filiere) {
+            $colors[$filiere] = $palette[$index % count($palette)];
+        }
+
+        return $colors;
+    }
+
+    private function normaliserFiliere(?string $filiere): string
+    {
+        $filiere = strtoupper(trim((string) $filiere));
+
+        return $filiere !== '' ? $filiere : 'NON_DEFINIE';
     }
 }

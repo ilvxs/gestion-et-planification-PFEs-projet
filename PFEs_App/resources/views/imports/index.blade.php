@@ -23,9 +23,9 @@
             <label class="form-label fw-semibold">Fichier Excel unifie</label>
             <input type="file" name="import_file" class="form-control">
             <small class="text-muted">
-                Feuilles attendues : professeurs, etudiants, salles.
-                Professeur : nom, prenom, specialite.
-                Etudiant : CNE, nom, prenom, email personnel, email academique, filiere, sujet, langue.
+                Feuilles attendues : professeurs, etudiants, salles.<br>
+                Professeur : nom, prenom, specialite.<br>
+                Etudiant : colonnes obligatoires : CNE, nom, prenom, email, filiere, langue. La colonne sujet est optionnelle.<br>
                 Salle : nom, disponible optionnel.
             </small>
         </div>

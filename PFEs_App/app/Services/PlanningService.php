@@ -724,14 +724,6 @@ class PlanningService
             return "PFE {$pfe->id_pfe} non planifié : la contrainte obligatoire des 2 professeurs informatique est impossible.";
         }
 
-        if (
-            $this->isEnglish($pfe->langue) &&
-            !$this->isEnglish($encadrant->specialite)
-        ) {
-            return "PFE {$pfe->id_pfe} non planifié : PFE en anglais sans encadrant anglais. "
-                . "Aucun créneau valide n'a été trouvé avec les contraintes actuelles.";
-        }
-
         return "PFE {$pfe->id_pfe} non planifié : aucun créneau trouvé sans conflit de salle, conflit professeur ou soutenance consécutive. Augmentez les jours, les salles ou les créneaux.";
     }
 
@@ -785,7 +777,7 @@ class PlanningService
             'salle' => $slot['salle'],
             'filiere' => $this->filierePfe($pfe),
             'langue' => $pfe->langue ?? '-',
-            'pfe' => $pfe->sujet ?? '-',
+            'pfe' => $pfe->sujet ?: 'PFE ' . $pfe->id_pfe,
             'encadrant' => $this->nomComplet($encadrant),
             'specialite_encadrant' => $encadrant->specialite ?? '-',
             'jury1' => $this->nomComplet($jury1),

@@ -170,7 +170,7 @@ class VerificationService
                 ->map(function ($pfe) {
                     return [
                         'id_pfe' => $pfe->id_pfe,
-                        'sujet' => $pfe->sujet,
+                        'sujet' => $pfe->sujet ?: 'PFE ' . $pfe->id_pfe,
                         'langue' => $pfe->langue,
                         'filiere' => $pfe->etudiant?->filiere ?? '-',
                         'encadrant' => $pfe->encadrant
