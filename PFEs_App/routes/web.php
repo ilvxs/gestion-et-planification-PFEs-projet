@@ -21,6 +21,12 @@ Route::post('/affectations/generate', [AffectationController::class, 'generate']
 Route::post('/planning/generate', [PlanningController::class, 'generate'])
     ->name('planning.generate');
 
+Route::get('/planning/viewer', [PlanningController::class, 'viewer'])
+    ->name('planning.viewer');
+
+Route::get('/api/planning', [PlanningController::class, 'planningJson'])
+    ->name('planning.json');
+
 Route::get('/verification', [VerificationController::class, 'index'])
     ->name('verification.index');
 

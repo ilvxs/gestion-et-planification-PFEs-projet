@@ -120,6 +120,10 @@
                     Dashboard
                 </a>
 
+                <a href="{{ route('planning.viewer') }}" class="{{ request()->routeIs('planning.viewer') ? 'active' : '' }}">
+                    Planning interactif
+                </a>
+
                 <a href="{{ route('export.index') }}" class="{{ request()->routeIs('export.*') || request()->routeIs('documents.*') ? 'active' : '' }}">
                     Exportation
                 </a>

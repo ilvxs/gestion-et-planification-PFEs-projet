@@ -48,6 +48,10 @@
                 Le planning est généré. Lancez maintenant la vérification de l’affectation et du planning.
             </p>
 
+            <a href="{{ route('planning.viewer') }}" class="btn btn-outline-primary me-2">
+                Voir le planning interactif
+            </a>
+
             <a href="{{ route('verification.index') }}" class="btn btn-main">
                 Vérifier l’affectation et le planning
             </a>
