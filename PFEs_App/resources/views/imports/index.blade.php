@@ -21,13 +21,14 @@
 
         <div class="col-md-8">
             <label class="form-label fw-semibold">Fichier Excel unifie</label>
-            <input type="file" name="import_file" class="form-control">
+            <input type="file" name="import_file" id="excel_file" class="form-control" accept=".xlsx,.xls">
             <small class="text-muted">
                 Feuilles attendues : professeurs, etudiants, salles.<br>
                 Professeur : nom, prenom, specialite.<br>
                 Etudiant : colonnes obligatoires : CNE, nom, prenom, email, filiere, langue. La colonne sujet est optionnelle.<br>
                 Salle : nom, disponible optionnel.
             </small>
+            <div id="excel-import-preview" data-input-id="excel_file"></div>
         </div>
 
         <div class="col-12">
@@ -112,4 +113,7 @@
             </button>
         </div>
     </form>
+
+    @viteReactRefresh
+    @vite(['resources/js/app.jsx'])
 </x-layout>
