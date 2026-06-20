@@ -235,8 +235,8 @@ class ImportExcelService
 
             $data = [
                 'cne' => $this->getCellByAliases($row, $columns, $requiredColumns['cne']),
-                'nom' => $this->getCellByAliases($row, $columns, $requiredColumns['nom']),
-                'prenom' => $this->getCellByAliases($row, $columns, $requiredColumns['prenom']),
+                'nom' => $this->normaliserNom($this->getCellByAliases($row, $columns, $requiredColumns['nom'])),
+                'prenom' => $this->normaliserPrenom($this->getCellByAliases($row, $columns, $requiredColumns['prenom'])),
                 'email' => $email,
                 'filiere' => $this->getCellByAliases($row, $columns, $requiredColumns['filiere']),
                 'sujet' => $sujet !== '' ? $sujet : null,
@@ -301,8 +301,8 @@ class ImportExcelService
 
             $lineNum = $index + 1;
             $data = [
-                'nom' => trim((string) ($row[0] ?? '')),
-                'prenom' => trim((string) ($row[1] ?? '')),
+                'nom' => $this->normaliserNom($row[0] ?? ''),
+                'prenom' => $this->normaliserPrenom($row[1] ?? ''),
                 'specialite' => trim((string) ($row[2] ?? '')),
             ];
 
@@ -555,5 +555,22 @@ class ImportExcelService
             'salles_imported' => 0,
             'errors' => $errors,
         ];
+    }
+
+    private function normaliserNom(?string $nom): string
+    {
+        $nom = trim((string) $nom);
+        $nom = preg_replace('/\s+/', ' ', $nom);
+
+        return mb_strtoupper($nom, 'UTF-8');
+    }
+
+    private function normaliserPrenom(?string $prenom): string
+    {
+        $prenom = trim((string) $prenom);
+        $prenom = preg_replace('/\s+/', ' ', $prenom);
+        $prenom = mb_strtolower($prenom, 'UTF-8');
+
+        return mb_convert_case($prenom, MB_CASE_TITLE, 'UTF-8');
     }
 }
